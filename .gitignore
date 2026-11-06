@@ -13,3 +13,4 @@ site/.vercel/
 
 # macOS
 .DS_Store
+site/*.tsbuildinfo
