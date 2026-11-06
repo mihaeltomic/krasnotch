@@ -1,19 +1,24 @@
-import { Features } from "./components/Features";
-import { Film } from "./components/Film";
+import { Bento } from "./components/Bento";
+import { Cta } from "./components/Cta";
 import { Footer } from "./components/Footer";
 import { Hero } from "./components/Hero";
-import { Install } from "./components/Install";
-import { States } from "./components/States";
+import { Manifesto } from "./components/Manifesto";
+import { Marquee } from "./components/Marquee";
+import { Nav } from "./components/Nav";
+import { Settings } from "./components/Settings";
+import { StateAccordion } from "./components/StateAccordion";
 
 export const App = () => (
-  <>
+  <main className="relative w-full max-w-full overflow-x-hidden">
+    <div className="ambient" aria-hidden="true" />
+    <Nav />
     <Hero />
-    <main>
-      <Film />
-      <States />
-      <Features />
-      <Install />
-    </main>
+    <Manifesto />
+    <Bento />
+    <Marquee />
+    <StateAccordion />
+    <Settings />
+    <Cta />
     <Footer />
-  </>
+  </main>
 );
