@@ -89,12 +89,15 @@ struct GeneralPane: View {
           .padding(12)
       }
 
-      SettingsCard(title: "Done Pill", footer: "When an agent finishes, a pill with the thread’s name drops out of the notch. Click it to jump back.") {
-        SettingsRow(title: "Show thread pill when done") {
+      SettingsCard(title: "Thread Pill", footer: "A pill with the thread’s name drops out of the notch in that state’s glow colors. Click it to jump back to the thread.") {
+        SettingsRow(title: "When an agent is done") {
           Toggle("", isOn: $model.config.showDonePill).labelsHidden().toggleStyle(.switch)
         }
-        if model.config.showDonePill {
-          CompactSlider(title: "Keep pill visible", value: $model.config.donePillDuration, in: 4...30) { String(format: "%.0fs", $0) }
+        SettingsRow(title: "When an agent needs you") {
+          Toggle("", isOn: $model.config.showNeedsInputPill).labelsHidden().toggleStyle(.switch)
+        }
+        if model.config.showDonePill || model.config.showNeedsInputPill {
+          CompactSlider(title: "Keep pill visible", value: $model.config.pillDuration, in: 4...30) { String(format: "%.0fs", $0) }
             .padding(12)
         }
       }

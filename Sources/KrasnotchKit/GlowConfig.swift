@@ -92,14 +92,16 @@ public struct GlowConfig: Codable, Equatable, Sendable {
   public var brightness = 1.0
   /// Shows a clickable pill with the thread's name under the notch when an agent finishes.
   public var showDonePill = true
-  /// Seconds the Done pill stays up (it holds while hovered).
-  public var donePillDuration = 8.0
+  /// Same pill, when an agent is waiting on you.
+  public var showNeedsInputPill = true
+  /// Seconds the pill stays up (it holds while hovered).
+  public var pillDuration = 8.0
 
   public init() {}
 
   private enum CodingKeys: String, CodingKey {
     case enabled, working, needsInput, done, topCornerRadius, bottomCornerRadius, notchCornerRadius
-    case doneDuration, showOnExternalDisplays, hideFromScreenCapture, brightness, showDonePill, donePillDuration
+    case doneDuration, showOnExternalDisplays, hideFromScreenCapture, brightness, showDonePill, showNeedsInputPill, pillDuration
   }
 
   /// Missing keys fall back to defaults, so adding a setting never wipes someone's saved config.
@@ -118,7 +120,16 @@ public struct GlowConfig: Codable, Equatable, Sendable {
     hideFromScreenCapture = try c.decodeIfPresent(Bool.self, forKey: .hideFromScreenCapture) ?? d.hideFromScreenCapture
     brightness = try c.decodeIfPresent(Double.self, forKey: .brightness) ?? d.brightness
     showDonePill = try c.decodeIfPresent(Bool.self, forKey: .showDonePill) ?? d.showDonePill
-    donePillDuration = try c.decodeIfPresent(Double.self, forKey: .donePillDuration) ?? d.donePillDuration
+    showNeedsInputPill = try c.decodeIfPresent(Bool.self, forKey: .showNeedsInputPill) ?? d.showNeedsInputPill
+    pillDuration = try c.decodeIfPresent(Double.self, forKey: .pillDuration) ?? d.pillDuration
+  }
+
+  public func showsPill(for state: GlowState) -> Bool {
+    switch state {
+    case .done: showDonePill
+    case .needsInput: showNeedsInputPill
+    case .working: false
+    }
   }
 
   public subscript(state: GlowState) -> GlowStyle {
@@ -140,6 +151,13 @@ public struct GlowConfig: Codable, Equatable, Sendable {
 }
 
 extension GlowStyle {
+  /// Whether text on this palette reads better dark than white, judged on its darkest color.
+  public var prefersDarkText: Bool {
+    let darkest = colors.compactMap(RGBA.init(hex:)).map(\.luminance).min() ?? 1
+    // WCAG: dark text wins once (L + 0.05)² > 1.05 × 0.05, i.e. above ~0.18.
+    return darkest > 0.179
+  }
+
   public static func defaultStyle(for state: GlowState) -> GlowStyle {
     switch state {
     case .working:

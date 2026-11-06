@@ -1,66 +1,59 @@
 import AppKit
+import KrasnotchKit
 import Observation
 import SwiftUI
 
 @MainActor
 @Observable
-final class DonePillModel {
+final class ThreadPillModel {
   var title = ""
+  var state: GlowState = .done
+  var style = GlowStyle.defaultStyle(for: .done)
   var hasTarget = false
   var visible = false
   var hovering = false
   /// The pill's layout frame in the window, top-left origin. Hover is hit-tested against it.
   var pillRect = CGRect.zero
-  /// Bumped on every new Done, so the arrow bounces once per arrival.
-  var arrivals = 0
 }
 
-/// The lime pill that drops out of the notch when a thread finishes.
-struct DonePillView: View {
+/// The pill that drops out of the notch when a thread finishes or needs you, painted like that state's glow.
+struct ThreadPillView: View {
   static let maxTitleWidth: CGFloat = 220
   private static let fontSize: CGFloat = 12
+  private static let ink = Color(red: 0x0C / 255, green: 0x0E / 255, blue: 0x11 / 255)
 
-  let model: DonePillModel
+  let model: ThreadPillModel
   let onClick: () -> Void
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  private static let volt = Color(red: 0xC4 / 255, green: 0xFF / 255, blue: 0x3A / 255)
-  private static let ink = Color(red: 0x0C / 255, green: 0x0E / 255, blue: 0x11 / 255)
-
   var body: some View {
     let shown = model.visible
+    let style = model.style
     Button(action: onClick) {
-      HStack(spacing: 5) {
-        Text(model.title)
-          .font(.system(size: Self.fontSize, weight: .semibold))
-          .lineLimit(1)
-          .truncationMode(.tail)
-          .frame(width: titleWidth, alignment: .leading)
-          .id(model.title)
-          .transition(reduceMotion ? AnyTransition.opacity : AnyTransition(.blurReplace))
-        if model.hasTarget {
-          Image(systemName: "arrow.right.circle")
-            .font(.system(size: 14, weight: .medium))
-            .offset(x: model.hovering && !reduceMotion ? 1.5 : 0)
-            .symbolEffect(.bounce, value: model.arrivals)
-        }
-      }
-      .foregroundStyle(Self.ink)
-      .opacity(shown ? 1 : 0)
-      .animation(shown ? .smooth(duration: 0.3).delay(0.06) : .smooth(duration: 0.12), value: shown)
-      .padding(.leading, 11)
-      .padding(.trailing, model.hasTarget ? 6 : 11)
-      .frame(height: 26)
-      .background(Self.volt, in: Capsule())
-      .contentShape(Capsule())
+      Text(model.title)
+        .font(.system(size: Self.fontSize, weight: .semibold))
+        .lineLimit(1)
+        .truncationMode(.tail)
+        .frame(width: titleWidth, alignment: .leading)
+        .id(model.title)
+        .transition(reduceMotion ? AnyTransition.opacity : AnyTransition(.blurReplace))
+        .foregroundStyle(style.prefersDarkText ? Self.ink : .white)
+        .opacity(shown ? 1 : 0)
+        .animation(shown ? .smooth(duration: 0.3).delay(0.06) : .smooth(duration: 0.12), value: shown)
+        .padding(.horizontal, 11)
+        .frame(height: 26)
+        .background { PillSurface(style: style, animate: shown && !reduceMotion) }
+        .contentShape(Capsule())
     }
     .buttonStyle(PillPressStyle(hovering: model.hovering, reduceMotion: reduceMotion))
     // SwiftUI's onHover stays silent while Krasnotch isn't the active app; the hosting view tracks hover instead.
     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { model.pillRect = $0 }
     .animation(.snappy(duration: 0.22), value: model.hovering)
     .animation(.smooth(duration: 0.3), value: model.title)
-    .shadow(color: .black.opacity(shown ? 0.35 : 0), radius: 8, y: 4)
+    .animation(.smooth(duration: 0.3), value: style)
+    // The pill glows in its palette, like the notch does; Magic makes the glow fuller.
+    .shadow(color: style.primaryColor.opacity(shown ? glowOpacity : 0), radius: style.magic ? 11 : 7)
     // Tucked up behind the notch until shown; the window's top edge clips it, so it appears to drop out.
     .scaleEffect(reduceMotion || shown ? 1 : 0.55, anchor: .top)
     .offset(y: reduceMotion || shown ? 0 : -12)
@@ -69,8 +62,13 @@ struct DonePillView: View {
     .animation(shown ? .spring(duration: 0.45, bounce: 0.32) : .spring(duration: 0.28, bounce: 0), value: shown)
     .padding(.top, 5)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    .accessibilityLabel("\(model.title) is done")
+    .accessibilityLabel(model.state == .needsInput ? "\(model.title) needs you" : "\(model.title) is done")
     .accessibilityHint(model.hasTarget ? "Opens the thread" : "Dismisses")
+  }
+
+  private var glowOpacity: Double {
+    let intensity = min(max(model.style.intensity, 0), 1)
+    return model.style.magic ? 0.45 + 0.4 * intensity : 0.25 + 0.35 * intensity
   }
 
   /// The pill hugs short titles and truncates long ones; measured so width changes animate.

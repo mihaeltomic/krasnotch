@@ -25,6 +25,12 @@ public struct RGBA: Equatable, Sendable {
     alpha = hasAlpha ? Double(value & 0xFF) / 255 : 1
   }
 
+  /// WCAG relative luminance, 0 (black) to 1 (white).
+  public var luminance: Double {
+    func linear(_ c: Double) -> Double { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+    return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+  }
+
   public var hex: String {
     let channels = [red, green, blue].map { Int(($0 * 255).rounded()).clamped(to: 0...255) }
     let base = String(format: "#%02X%02X%02X", channels[0], channels[1], channels[2])

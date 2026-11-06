@@ -167,7 +167,19 @@ import Testing
     #expect(config.brightness == 1)
     #expect(config.done == GlowStyle.defaultStyle(for: .done))
     #expect(config.showDonePill == true)
-    #expect(config.donePillDuration == 8)
+    #expect(config.showNeedsInputPill == true)
+    #expect(config.pillDuration == 8)
+    #expect(config.showsPill(for: .working) == false)
+  }
+
+  @Test func pillTextContrastFollowsThePalette() {
+    #expect(GlowStyle.defaultStyle(for: .done).prefersDarkText)
+    #expect(GlowStyle.defaultStyle(for: .needsInput).prefersDarkText)
+    var style = GlowStyle.defaultStyle(for: .working)
+    style.colors = ["#C4FF3A", "#1A1A40"]
+    #expect(!style.prefersDarkText)
+    #expect(RGBA(hex: "#FFFFFF")!.luminance == 1)
+    #expect(RGBA(hex: "#000000")!.luminance == 0)
   }
 }
 

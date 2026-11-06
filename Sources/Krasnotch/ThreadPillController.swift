@@ -1,28 +1,31 @@
 import AppKit
+import KrasnotchKit
 import SwiftUI
 
-/// Shows the Done pill under the notch, keeps it up while hovered, and sends a click back to the thread.
+/// Shows the thread pill under the notch, keeps it up while hovered, and sends a click back to the thread.
 @MainActor
-final class DonePillController {
+final class ThreadPillController {
   private static let panelSize = CGSize(width: 300, height: 52)
   private static let hoverOutGrace: TimeInterval = 2.5
   private static let exitDuration: TimeInterval = 0.32
 
-  private let model = DonePillModel()
-  private var panel: DonePillPanel?
+  private let model = ThreadPillModel()
+  private var panel: ThreadPillPanel?
   private var session: String?
   private var origin: SessionOrigin?
   private var duration: TimeInterval = 8
   private var dismissTask: Task<Void, Never>?
 
-  func show(session: String, title: String, origin: SessionOrigin?, duration: TimeInterval, hideFromCapture: Bool) {
+  func show(session: String, state: GlowState, style: GlowStyle, title: String, origin: SessionOrigin?,
+            duration: TimeInterval, hideFromCapture: Bool) {
     guard let screen = NSScreen.screens.first(where: \.isBuiltIn) ?? NSScreen.main else { return }
     self.session = session
     self.origin = origin
     self.duration = duration
     model.title = title
+    model.state = state
+    model.style = style
     model.hasTarget = origin != nil
-    model.arrivals += 1
 
     let panel = panel ?? makePanel()
     panel.sharingType = hideFromCapture ? .none : .readOnly
@@ -70,9 +73,9 @@ final class DonePillController {
     }
   }
 
-  private func makePanel() -> DonePillPanel {
-    let view = DonePillView(model: model) { [weak self] in self?.click() }
-    let panel = DonePillPanel(contentRect: CGRect(origin: .zero, size: Self.panelSize), content: view, model: model) { [weak self] in
+  private func makePanel() -> ThreadPillPanel {
+    let view = ThreadPillView(model: model) { [weak self] in self?.click() }
+    let panel = ThreadPillPanel(contentRect: CGRect(origin: .zero, size: Self.panelSize), content: view, model: model) { [weak self] in
       self?.hover($0)
     }
     self.panel = panel
@@ -96,8 +99,8 @@ final class DonePillController {
 
 /// Transparent panel for the pill. Clicks land only where the pill is drawn; the clear margins pass through.
 @MainActor
-final class DonePillPanel: NSPanel {
-  init(contentRect: CGRect, content: DonePillView, model: DonePillModel, onHover: @escaping (Bool) -> Void) {
+final class ThreadPillPanel: NSPanel {
+  init(contentRect: CGRect, content: ThreadPillView, model: ThreadPillModel, onHover: @escaping (Bool) -> Void) {
     super.init(contentRect: contentRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     isOpaque = false
     backgroundColor = .clear
@@ -119,8 +122,8 @@ final class DonePillPanel: NSPanel {
 }
 
 /// Acts on the first click and tracks hover even though Krasnotch never becomes the active app.
-private final class PillHostingView: NSHostingView<DonePillView> {
-  weak var model: DonePillModel?
+private final class PillHostingView: NSHostingView<ThreadPillView> {
+  weak var model: ThreadPillModel?
   var onHover: ((Bool) -> Void)?
   private var inside = false
   private var hoverArea: NSTrackingArea?

@@ -13,7 +13,7 @@ final class AppModel {
       guard config != oldValue else { return }
       persist()
       tracker.doneDuration = config.doneDuration
-      if !config.enabled || !config.showDonePill { pill.dismiss() }
+      if !config.enabled || (!config.showDonePill && !config.showNeedsInputPill) { pill.dismiss() }
       refresh()
     }
   }
@@ -55,7 +55,7 @@ final class AppModel {
 
   private var tracker = SessionTracker()
   private let overlay = OverlayController()
-  private let pill = DonePillController()
+  private let pill = ThreadPillController()
   private let installer = ClaudeHookInstaller()
   private var server: EventServer?
   private var origins: [String: SessionOrigin] = [:]
@@ -108,9 +108,14 @@ final class AppModel {
     tracker.apply(update, at: .now)
     refresh()
     switch update {
-    case let .set(session, .done) where previous != .done: announceDone(session: session, context: context)
-    case .set(_, .done): break
-    case let .set(session, _), let .end(session): pill.dismiss(session: session)
+    case let .set(session, state) where state != previous && config.showsPill(for: state):
+      announce(session: session, state: state, context: context)
+    case let .set(session, state) where state != previous:
+      pill.dismiss(session: session)
+    case .set:
+      break
+    case let .end(session):
+      pill.dismiss(session: session)
     }
   }
 
@@ -118,21 +123,24 @@ final class AppModel {
     tracker.activeSessions.first { $0.id == session }?.state
   }
 
-  /// Shows the Done pill named after the thread. The transcript is read off the main actor; it can be large.
-  private func announceDone(session: String, context: HookContext) {
-    guard config.enabled, config.showDonePill else { return }
+  /// Shows the pill named after the thread. The transcript is read off the main actor; it can be large.
+  private func announce(session: String, state: GlowState, context: HookContext) {
+    guard config.enabled else { return }
     let path = context.transcriptPath
     let folder = context.cwd.map { URL(fileURLWithPath: $0).lastPathComponent }
     Task { [weak self] in
       let title = await Task.detached { path.flatMap(ThreadTitle.read(path:)) }.value
-      guard let self, self.config.enabled, self.config.showDonePill,
-            [nil, .done].contains(self.state(of: session)) else { return }
+      // Skip if the thread moved on (or the setting changed) while the title was being read.
+      guard let self, self.config.enabled, self.config.showsPill(for: state),
+            [nil, state].contains(self.state(of: session)) else { return }
       let target = self.sessions.first { $0.id == session }
       self.pill.show(
         session: session,
+        state: state,
+        style: self.config[state],
         title: title ?? folder ?? target?.displayName ?? session,
         origin: self.origins[session],
-        duration: self.config.donePillDuration,
+        duration: self.config.pillDuration,
         hideFromCapture: self.config.hideFromScreenCapture
       )
     }
