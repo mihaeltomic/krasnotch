@@ -157,41 +157,55 @@ private struct MagicPreview: View {
   let time: TimeInterval
 
   var body: some View {
-    let colors = style.swiftUIColors
-    let cycle = max(style.speed, 1.6), travel = cycle * 0.72
-    let local = time.truncatingRemainder(dividingBy: cycle)
-    let raw = min(local / travel, 1)
-    let head = raw < 0.5 ? 2 * raw * raw : 1 - pow(-2 * raw + 2, 2) / 2
-    let moving = local < travel
-    let outline = NotchOutline(metrics: metrics).path(in: CGRect(origin: .zero, size: size))
-    let tail = moving ? NotchOutline(metrics: metrics).trim(from: max(head - 0.16, 0), to: head) : NotchOutline(metrics: metrics).trim(from: 0, to: 0)
+    let colors: [Color] = style.swiftUIColors
+    let cycle: Double = max(style.speed, 1.6)
+    let travel: Double = cycle * 0.72
+    let local: Double = time.truncatingRemainder(dividingBy: cycle)
+    let raw: Double = min(local / travel, 1)
+    let head: Double = raw < 0.5 ? 2 * raw * raw : 1 - pow(-2 * raw + 2, 2) / 2
+    let moving: Bool = local < travel
+    let shape = NotchOutline(metrics: metrics)
+    let outline: Path = shape.path(in: CGRect(origin: .zero, size: size))
+    let tail = shape.trim(from: moving ? max(head - 0.16, 0) : 0, to: moving ? head : 0)
 
     ZStack {
-      tail.stroke(colors[0], style: .init(lineWidth: thickness * 2.2, lineCap: .round))
+      tail.stroke(colors[0], style: StrokeStyle(lineWidth: thickness * 2.2, lineCap: .round))
         .shadow(color: colors[0], radius: thickness * 2)
-      tail.stroke(.white.opacity(0.9), style: .init(lineWidth: thickness * 0.8, lineCap: .round))
+      tail.stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: thickness * 0.8, lineCap: .round))
       Canvas { context, _ in
-        context.blendMode = .plusLighter
-        // 28 sparks shed along the trail; each one's age decides how far it fell and how much it faded.
-        for i in 0..<28 {
-          let age = Double(i) / 28 * 0.9
-          let born = head - age * 0.25
-          guard moving || age > 0.3, born > 0, born < 1 else { continue }
-          let point = outline.trimmedPath(from: born, to: min(born + 0.0005, 1)).boundingRect.origin
-          let seed = Double((i * 7919) % 97) / 97
-          let x = point.x + (seed - 0.5) * thickness * 6 * age
-          let y = point.y + thickness * 10 * age * age + seed * thickness
-          let r = thickness * (0.9 - age * 0.8) * (0.6 + seed * 0.6)
-          guard r > 0 else { continue }
-          let color = colors[i % colors.count].opacity(1 - age)
-          var star = Path()
-          star.move(to: CGPoint(x: x, y: y - r * 2)); star.addQuadCurve(to: CGPoint(x: x + r * 2, y: y), control: CGPoint(x: x, y: y))
-          star.addQuadCurve(to: CGPoint(x: x, y: y + r * 2), control: CGPoint(x: x, y: y))
-          star.addQuadCurve(to: CGPoint(x: x - r * 2, y: y), control: CGPoint(x: x, y: y))
-          star.addQuadCurve(to: CGPoint(x: x, y: y - r * 2), control: CGPoint(x: x, y: y))
-          context.fill(i % 3 == 0 ? star : Path(ellipseIn: CGRect(x: x - r / 2, y: y - r / 2, width: r, height: r)), with: .color(color))
-        }
+        drawGlitter(in: &context, outline: outline, head: head, moving: moving, colors: colors)
       }
     }
+  }
+
+  /// 28 sparks shed along the trail; each one's age decides how far it fell and how much it faded.
+  private func drawGlitter(in context: inout GraphicsContext, outline: Path, head: Double, moving: Bool, colors: [Color]) {
+    context.blendMode = .plusLighter
+    for i in 0..<28 {
+      let age: Double = Double(i) / 28 * 0.9
+      let born: Double = head - age * 0.25
+      guard moving || age > 0.3, born > 0, born < 1 else { continue }
+      let point: CGPoint = outline.trimmedPath(from: born, to: min(born + 0.0005, 1)).boundingRect.origin
+      let seed: CGFloat = CGFloat((i * 7919) % 97) / 97
+      let ageF = CGFloat(age)
+      let x: CGFloat = point.x + (seed - 0.5) * thickness * 6 * ageF
+      let y: CGFloat = point.y + thickness * 10 * ageF * ageF + seed * thickness
+      let r: CGFloat = thickness * (0.9 - ageF * 0.8) * (0.6 + seed * 0.6)
+      guard r > 0 else { continue }
+      let color: Color = colors[i % colors.count].opacity(1 - age)
+      let shape: Path = i % 3 == 0 ? starPath(x: x, y: y, r: r) : Path(ellipseIn: CGRect(x: x - r / 2, y: y - r / 2, width: r, height: r))
+      context.fill(shape, with: .color(color))
+    }
+  }
+
+  private func starPath(x: CGFloat, y: CGFloat, r: CGFloat) -> Path {
+    let center = CGPoint(x: x, y: y)
+    var star = Path()
+    star.move(to: CGPoint(x: x, y: y - r * 2))
+    star.addQuadCurve(to: CGPoint(x: x + r * 2, y: y), control: center)
+    star.addQuadCurve(to: CGPoint(x: x, y: y + r * 2), control: center)
+    star.addQuadCurve(to: CGPoint(x: x - r * 2, y: y), control: center)
+    star.addQuadCurve(to: CGPoint(x: x, y: y - r * 2), control: center)
+    return star
   }
 }
