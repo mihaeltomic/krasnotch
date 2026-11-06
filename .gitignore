@@ -1,0 +1,15 @@
+# Build output
+.build/
+build/
+dist/
+.swiftpm/
+*.xcodeproj/
+DerivedData/
+
+# Site
+site/node_modules/
+site/dist/
+site/.vercel/
+
+# macOS
+.DS_Store
