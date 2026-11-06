@@ -188,6 +188,11 @@ final class AppModel {
     originLookups.formIntersection(activeIDs)
     sessions = active.map { SessionTarget(id: $0.id, state: $0.state, origin: origins[$0.id]) }
     overlay.render(state: displayedState, config: config, sessions: sessions)
+    if let preview, config.enabled, config.showsPill(for: preview) {
+      pill.preview(state: preview, style: config[preview], hideFromCapture: config.hideFromScreenCapture)
+    } else {
+      pill.endPreview()
+    }
     scheduleExpiry(after: now)
   }
 

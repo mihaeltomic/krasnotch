@@ -13,15 +13,35 @@ final class ThreadPillController {
   private var panel: ThreadPillPanel?
   private var session: String?
   private var origin: SessionOrigin?
-  private var duration: TimeInterval = 8
   private var dismissTask: Task<Void, Never>?
+  /// While Settings previews a state on the notch, the pill shows it too and real pills wait.
+  private var previewing = false
 
   func show(session: String, state: GlowState, style: GlowStyle, title: String, origin: SessionOrigin?,
             duration: TimeInterval, hideFromCapture: Bool) {
+    guard !previewing else { return }
+    present(session: session, state: state, style: style, title: title, origin: origin, hideFromCapture: hideFromCapture)
+    scheduleDismiss(after: duration)
+  }
+
+  /// A stand-in pill that stays up and follows the style being edited.
+  func preview(state: GlowState, style: GlowStyle, hideFromCapture: Bool) {
+    previewing = true
+    dismissTask?.cancel()
+    present(session: nil, state: state, style: style, title: "Your thread’s name", origin: nil, hideFromCapture: hideFromCapture)
+  }
+
+  func endPreview() {
+    guard previewing else { return }
+    previewing = false
+    dismiss()
+  }
+
+  private func present(session: String?, state: GlowState, style: GlowStyle, title: String, origin: SessionOrigin?,
+                       hideFromCapture: Bool) {
     guard let screen = NSScreen.screens.first(where: \.isBuiltIn) ?? NSScreen.main else { return }
     self.session = session
     self.origin = origin
-    self.duration = duration
     model.title = title
     model.state = state
     model.style = style
@@ -35,7 +55,6 @@ final class ThreadPillController {
       // Let the hidden state render first so the drop animates from behind the notch.
       Task { @MainActor in self.model.visible = true }
     }
-    scheduleDismiss(after: duration)
   }
 
   /// Hides the pill; with a session, only if the pill belongs to it.
@@ -54,6 +73,7 @@ final class ThreadPillController {
   }
 
   private func click() {
+    guard !previewing else { return }
     origin?.activate()
     dismiss()
   }
@@ -65,7 +85,7 @@ final class ThreadPillController {
 
   private func scheduleDismiss(after delay: TimeInterval) {
     dismissTask?.cancel()
-    guard !model.hovering else { return }
+    guard !model.hovering, !previewing else { return }
     dismissTask = Task { @MainActor [weak self] in
       try? await Task.sleep(for: .seconds(delay))
       guard !Task.isCancelled else { return }
