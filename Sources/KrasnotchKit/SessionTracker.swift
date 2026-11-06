@@ -3,6 +3,12 @@ import Foundation
 public enum SessionUpdate: Equatable, Sendable {
   case set(session: String, state: GlowState)
   case end(session: String)
+
+  public var session: String {
+    switch self {
+    case let .set(session, _), let .end(session): session
+    }
+  }
 }
 
 /// Tracks the state of every agent session and collapses them into the single state the glow shows.

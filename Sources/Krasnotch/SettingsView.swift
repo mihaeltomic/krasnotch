@@ -89,6 +89,16 @@ struct GeneralPane: View {
           .padding(12)
       }
 
+      SettingsCard(title: "Done Pill", footer: "When an agent finishes, a pill with the thread’s name drops out of the notch. Click it to jump back.") {
+        SettingsRow(title: "Show thread pill when done") {
+          Toggle("", isOn: $model.config.showDonePill).labelsHidden().toggleStyle(.switch)
+        }
+        if model.config.showDonePill {
+          CompactSlider(title: "Keep pill visible", value: $model.config.donePillDuration, in: 4...30) { String(format: "%.0fs", $0) }
+            .padding(12)
+        }
+      }
+
       SettingsCard(title: "Notch", footer: "Rounds the glow’s inner corners to sit flush with your MacBook’s notch.") {
         CompactSlider(title: "Corner radius", value: $model.config.notchCornerRadius, in: 0...16) { String(format: "%.0fpt", $0) }
           .padding(12)

@@ -90,12 +90,16 @@ public struct GlowConfig: Codable, Equatable, Sendable {
   public var hideFromScreenCapture = true
   /// 0.2...1, overall opacity of the glow on screen.
   public var brightness = 1.0
+  /// Shows a clickable pill with the thread's name under the notch when an agent finishes.
+  public var showDonePill = true
+  /// Seconds the Done pill stays up (it holds while hovered).
+  public var donePillDuration = 8.0
 
   public init() {}
 
   private enum CodingKeys: String, CodingKey {
     case enabled, working, needsInput, done, topCornerRadius, bottomCornerRadius, notchCornerRadius
-    case doneDuration, showOnExternalDisplays, hideFromScreenCapture, brightness
+    case doneDuration, showOnExternalDisplays, hideFromScreenCapture, brightness, showDonePill, donePillDuration
   }
 
   /// Missing keys fall back to defaults, so adding a setting never wipes someone's saved config.
@@ -113,6 +117,8 @@ public struct GlowConfig: Codable, Equatable, Sendable {
     showOnExternalDisplays = try c.decodeIfPresent(Bool.self, forKey: .showOnExternalDisplays) ?? d.showOnExternalDisplays
     hideFromScreenCapture = try c.decodeIfPresent(Bool.self, forKey: .hideFromScreenCapture) ?? d.hideFromScreenCapture
     brightness = try c.decodeIfPresent(Double.self, forKey: .brightness) ?? d.brightness
+    showDonePill = try c.decodeIfPresent(Bool.self, forKey: .showDonePill) ?? d.showDonePill
+    donePillDuration = try c.decodeIfPresent(Double.self, forKey: .donePillDuration) ?? d.donePillDuration
   }
 
   public subscript(state: GlowState) -> GlowStyle {

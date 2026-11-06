@@ -7,11 +7,14 @@ public struct HookContext: Equatable, Sendable {
   public var t3ThreadID: String?
   /// The agent's working directory, from the hook payload.
   public var cwd: String?
+  /// The session's JSONL transcript, from the hook payload. Holds the thread's title.
+  public var transcriptPath: String?
 
-  public init(pid: Int32? = nil, t3ThreadID: String? = nil, cwd: String? = nil) {
+  public init(pid: Int32? = nil, t3ThreadID: String? = nil, cwd: String? = nil, transcriptPath: String? = nil) {
     self.pid = pid
     self.t3ThreadID = t3ThreadID
     self.cwd = cwd
+    self.transcriptPath = transcriptPath
   }
 
   public static func parse(_ request: HTTPRequest) -> HookContext {
@@ -20,7 +23,8 @@ public struct HookContext: Equatable, Sendable {
     return HookContext(
       pid: request.query["pid"].flatMap(Int32.init),
       t3ThreadID: nonEmpty(request.query["t3"]),
-      cwd: nonEmpty(payload?["cwd"] as? String)
+      cwd: nonEmpty(payload?["cwd"] as? String),
+      transcriptPath: nonEmpty(payload?["transcript_path"] as? String)
     )
   }
 }

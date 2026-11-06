@@ -13,6 +13,7 @@ final class AppModel {
       guard config != oldValue else { return }
       persist()
       tracker.doneDuration = config.doneDuration
+      if !config.enabled || !config.showDonePill { pill.dismiss() }
       refresh()
     }
   }
@@ -54,6 +55,7 @@ final class AppModel {
 
   private var tracker = SessionTracker()
   private let overlay = OverlayController()
+  private let pill = DonePillController()
   private let installer = ClaudeHookInstaller()
   private var server: EventServer?
   private var origins: [String: SessionOrigin] = [:]
@@ -102,8 +104,38 @@ final class AppModel {
       origins[session] = nil
       originLookups.remove(session)
     }
+    let previous = state(of: update.session)
     tracker.apply(update, at: .now)
     refresh()
+    switch update {
+    case let .set(session, .done) where previous != .done: announceDone(session: session, context: context)
+    case .set(_, .done): break
+    case let .set(session, _), let .end(session): pill.dismiss(session: session)
+    }
+  }
+
+  private func state(of session: String) -> GlowState? {
+    tracker.activeSessions.first { $0.id == session }?.state
+  }
+
+  /// Shows the Done pill named after the thread. The transcript is read off the main actor; it can be large.
+  private func announceDone(session: String, context: HookContext) {
+    guard config.enabled, config.showDonePill else { return }
+    let path = context.transcriptPath
+    let folder = context.cwd.map { URL(fileURLWithPath: $0).lastPathComponent }
+    Task { [weak self] in
+      let title = await Task.detached { path.flatMap(ThreadTitle.read(path:)) }.value
+      guard let self, self.config.enabled, self.config.showDonePill,
+            [nil, .done].contains(self.state(of: session)) else { return }
+      let target = self.sessions.first { $0.id == session }
+      self.pill.show(
+        session: session,
+        title: title ?? folder ?? target?.displayName ?? session,
+        origin: self.origins[session],
+        duration: self.config.donePillDuration,
+        hideFromCapture: self.config.hideFromScreenCapture
+      )
+    }
   }
 
   /// Fires a short-lived fake session so you can see a state without an agent running.
@@ -116,6 +148,7 @@ final class AppModel {
   }
 
   func clearSessions() {
+    pill.dismiss()
     tracker.removeAll()
     origins.removeAll()
     originLookups.removeAll()

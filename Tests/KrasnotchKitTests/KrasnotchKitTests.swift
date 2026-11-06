@@ -166,6 +166,8 @@ import Testing
     #expect(config.working.motion == .comet)
     #expect(config.brightness == 1)
     #expect(config.done == GlowStyle.defaultStyle(for: .done))
+    #expect(config.showDonePill == true)
+    #expect(config.donePillDuration == 8)
   }
 }
 
@@ -173,10 +175,12 @@ import Testing
   let env = "9d7ae3a4-b322-4646-9879-8e67c977f219"
 
   @Test func parsesHookContext() throws {
-    let body = #"{"hook_event_name":"Stop","session_id":"s","cwd":"/Users/me/app"}"#
+    let body = #"{"hook_event_name":"Stop","session_id":"s","cwd":"/Users/me/app","transcript_path":"/Users/me/.claude/projects/x/s.jsonl"}"#
     let raw = "POST /claude?pid=4242&t3=22c01477-a388 HTTP/1.1\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)"
     guard case let .complete(request) = HTTPRequest.parse(Data(raw.utf8)) else { Issue.record("parse"); return }
-    #expect(HookContext.parse(request) == HookContext(pid: 4242, t3ThreadID: "22c01477-a388", cwd: "/Users/me/app"))
+    #expect(HookContext.parse(request) == HookContext(
+      pid: 4242, t3ThreadID: "22c01477-a388", cwd: "/Users/me/app", transcriptPath: "/Users/me/.claude/projects/x/s.jsonl"
+    ))
   }
 
   @Test func emptyThreadParameterIsIgnored() throws {
@@ -203,6 +207,37 @@ import Testing
     #expect(ReturnPlan.make(bundleID: "com.apple.Terminal", context: HookContext(), t3EnvironmentID: nil, tty: "/dev/tty\" & do shell script \"x") == .activateApp)
     #expect(ReturnPlan.make(bundleID: "com.t3tools.t3code", context: HookContext(t3ThreadID: "../../etc"), t3EnvironmentID: env, tty: nil) == .activateApp)
     #expect(ReturnPlan.make(bundleID: "com.example.Other", context: HookContext(), t3EnvironmentID: nil, tty: "/dev/ttys001") == .activateApp)
+  }
+}
+
+@Suite struct ThreadTitleTests {
+  private func title(_ lines: [String]) -> String? {
+    ThreadTitle.parse(transcript: Data(lines.joined(separator: "\n").utf8))
+  }
+
+  @Test func customTitleBeatsGeneratedAndLatestWins() {
+    #expect(title([
+      #"{"type":"ai-title","aiTitle":"Generated","sessionId":"s"}"#,
+      #"{"type":"custom-title","customTitle":"First name","sessionId":"s"}"#,
+      #"{"type":"user","message":{"content":"hi"}}"#,
+      #"{"type":"custom-title","customTitle":"  Renamed  ","sessionId":"s"}"#,
+      #"{"type":"ai-title","aiTitle":"Later generated","sessionId":"s"}"#,
+    ]) == "Renamed")
+  }
+
+  @Test func fallsBackToGeneratedTitle() {
+    #expect(title([#"{"type":"ai-title","aiTitle":"One"}"#, #"{"type":"ai-title","aiTitle":"Two"}"#]) == "Two")
+  }
+
+  @Test func ignoresJunkAndMissingTitles() {
+    #expect(title(["not json", #"{"type":"user","text":"\"type\":\"ai-title\""}"#, #"{"type":"custom-title","customTitle":""}"#]) == nil)
+    #expect(title([]) == nil)
+  }
+
+  @Test func keepsTitlesShortAndSingleLine() {
+    let long = String(repeating: "a", count: 200)
+    #expect(title([#"{"type":"custom-title","customTitle":"Top line\nsecond"}"#]) == "Top line")
+    #expect(title([#"{"type":"custom-title","customTitle":"\#(long)"}"#])?.count == ThreadTitle.maxLength)
   }
 }
 
