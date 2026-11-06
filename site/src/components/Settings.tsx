@@ -1,19 +1,18 @@
 import { useMemo, useRef, useState } from "react";
 import { GlowCanvas } from "../gl/GlowCanvas";
-import type { GlowConfig } from "../gl/glow";
+import type { GlowStyle } from "../gl/renderer";
 import { BASE_GLOW, PALETTES } from "../links";
 import { ScrollTrigger, gsap, useGSAP } from "../gsap";
 
-const steps: { title: string; text: string; config: Partial<GlowConfig>; readout: string }[] = [
-  { title: "Flow", text: "The default: your palette streams around the notch outline.", config: {}, readout: "Flow · Siri · 2.4 s" },
-  { title: "Comet", text: "A bright head chases its tail around the edge.", config: { motion: "comet", colors: PALETTES.ocean, cycle: 2 }, readout: "Comet · Ocean · 2.0 s" },
-  { title: "Scanner", text: "Sweeps from side to side, like a status light thinking.", config: { motion: "scanner", colors: PALETTES.volt, cycle: 1.6 }, readout: "Scanner · Volt · 1.6 s" },
-  { title: "Thickness and intensity", text: "Go from a hairline to a full halo.", config: { colors: PALETTES.rainbow, thickness: 2.6, intensity: 1.4 }, readout: "Flow · Rainbow · thick" },
-  { title: "Dithered glow", text: "An ordered-dither finish with crisp pixel steps.", config: { colors: PALETTES.ember, dither: true, thickness: 2.2 }, readout: "Flow · Ember · dithered" },
-  { title: "Magic?", text: "A golden wand arcs around the notch and sheds glitter.", config: { colors: PALETTES.gold, magic: true, cycle: 2.6 }, readout: "Flow · Gold · Magic" },
+const steps: { title: string; text: string; config: Partial<GlowStyle>; readout: string }[] = [
+  { title: "Flow", text: "The default: your palette streams around the notch outline.", config: {}, readout: "Flow · Siri · 6 s" },
+  { title: "Comet", text: "A bright head chases its tail around the edge.", config: { motion: "comet", colors: PALETTES.ocean, speed: 2 }, readout: "Comet · Ocean · 2 s" },
+  { title: "Ping-pong", text: "Sweeps from side to side, like a status light thinking.", config: { motion: "scanner", colors: PALETTES.mint, speed: 2.4 }, readout: "Ping-pong · Mint · 2.4 s" },
+  { title: "Thickness and intensity", text: "Go from a hairline to a full halo.", config: { colors: PALETTES.rainbow, speed: 3, th: 8, int: 1 }, readout: "Flow · Rainbow · 8 pt" },
+  { title: "Dithered glow", text: "An ordered-dither finish with crisp pixel steps.", config: { colors: PALETTES.siri, speed: 4, th: 6, dither: true }, readout: "Flow · Siri · dithered" },
+  { title: "Magic?", text: "A golden wand arcs around the notch and sheds glitter.", config: { colors: PALETTES.gold, speed: 2.2, th: 5, int: 1, magic: true }, readout: "Flow · Gold · Magic?" },
 ];
 
-const notch = { width: 260, height: 34, radius: 13 };
 
 /** The glow stays pinned on the left and changes as each setting scrolls past on the right. */
 export const Settings = () => {
@@ -24,7 +23,14 @@ export const Settings = () => {
   useGSAP(
     () => {
       gsap.utils.toArray<HTMLElement>("[data-step]").forEach((el, i) => {
-        ScrollTrigger.create({ trigger: el, start: "top 55%", end: "bottom 55%", onToggle: (self) => self.isActive && setIndex(i) });
+        // Each step owns the space down to the next one, so exactly one step is active at a time.
+        const next = el.nextElementSibling as HTMLElement | null;
+        ScrollTrigger.create({
+          trigger: el,
+          start: "top 60%",
+          end: () => (next ? `+=${next.offsetTop - el.offsetTop}` : "bottom top"),
+          onToggle: (self) => self.isActive && setIndex(i),
+        });
       });
       gsap.matchMedia().add("(min-width: 1024px)", () => {
         ScrollTrigger.create({ trigger: "[data-steps]", start: "top 15%", end: "bottom 85%", pin: "[data-pinned]", pinSpacing: false });
@@ -40,7 +46,7 @@ export const Settings = () => {
           <h2 className="font-display text-[clamp(2.25rem,4.4vw,4rem)] leading-[1.05] font-semibold tracking-[-0.03em]">Every setting, live.</h2>
           <div className="mt-10 overflow-hidden rounded-[20px] bg-[#1a1d22] p-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]">
             <div className="relative overflow-hidden rounded-[8px]">
-              <GlowCanvas config={configs[index]} notch={notch} className="block aspect-[16/10] w-full" />
+              <GlowCanvas config={configs[index]} notchWidth={250} className="block aspect-[16/10] w-full" />
               <span className="absolute bottom-4 left-4 rounded-full bg-white/[0.06] px-3 py-1.5 font-mono text-xs text-ink shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]">
                 {steps[index].readout}
               </span>

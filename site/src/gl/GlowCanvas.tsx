@@ -1,48 +1,40 @@
 import { useEffect, useRef } from "react";
-import { type GlowConfig, GlowRenderer, type NotchSize } from "./glow";
+import { type GlowStyle, NotchGlowRenderer } from "./renderer";
 
 type GlowCanvasProps = {
-  config: GlowConfig;
-  notch: NotchSize;
+  config: GlowStyle;
+  /** Notch width in CSS px, or as a fraction of the canvas width when below 1. */
+  notchWidth: number;
   background?: string;
   className?: string;
 };
 
 const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/** A canvas that draws the notch glow. It renders only while on screen, and holds still for reduced motion. */
-export const GlowCanvas = ({ config, notch, background = "#07080a", className }: GlowCanvasProps) => {
+/** Draws the app's notch glow. Animates only while on screen and holds a still frame for reduced motion. */
+export const GlowCanvas = ({ config, notchWidth, background = "#07080a", className }: GlowCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rendererRef = useRef<GlowRenderer | null>(null);
+  const state = useRef({ config, notchWidth, background, start: performance.now() });
   const drawRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
-    let renderer: GlowRenderer;
-    try {
-      renderer = new GlowRenderer(canvas, config, notch, background);
-    } catch {
-      return; // No WebGL: the dark canvas background stays, which reads as a sleeping notch.
-    }
-    rendererRef.current = renderer;
+    const renderer = new NotchGlowRenderer(canvas);
+    const reduced = prefersReducedMotion();
     let frame = 0;
     let visible = false;
-    const start = performance.now();
-    const reduced = prefersReducedMotion();
 
     const draw = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      const width = Math.round(canvas.clientWidth * dpr);
-      const height = Math.round(canvas.clientHeight * dpr);
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-      }
-      renderer.render(reduced ? 0.8 : (performance.now() - start) / 1000, width, height, dpr);
+      const s = state.current;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const notch = s.notchWidth < 1 ? canvas.clientWidth * s.notchWidth : s.notchWidth;
+      renderer.layout(canvas.clientWidth, canvas.clientHeight, dpr, notch);
+      const local = reduced ? 1.2 : (performance.now() - s.start) / 1000;
+      renderer.draw(local, s.config, s.background);
       if (visible && !reduced) frame = requestAnimationFrame(draw);
     };
-
     drawRef.current = draw;
+
     const observer = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
       cancelAnimationFrame(frame);
@@ -59,27 +51,16 @@ export const GlowCanvas = ({ config, notch, background = "#07080a", className }:
       observer.disconnect();
       resize.disconnect();
       cancelAnimationFrame(frame);
-      rendererRef.current = null;
       drawRef.current = null;
     };
-    // The renderer is created once; config changes go through transitionTo below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const renderer = rendererRef.current;
-    if (!renderer || renderer.config === config) return;
-    if (prefersReducedMotion()) {
-      renderer.config = config;
-      drawRef.current?.();
-    } else {
-      renderer.transitionTo(config);
-    }
-  }, [config]);
-
-  useEffect(() => {
-    if (rendererRef.current) rendererRef.current.notch = notch;
-  }, [notch]);
+    const s = state.current;
+    if (s.config !== config) s.start = performance.now(); // the app restarts the animation on every change
+    Object.assign(s, { config, notchWidth, background });
+    if (prefersReducedMotion()) drawRef.current?.();
+  }, [config, notchWidth, background]);
 
   return <canvas ref={canvasRef} className={className} style={{ background }} aria-hidden="true" />;
 };

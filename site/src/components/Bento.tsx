@@ -1,4 +1,4 @@
-import { GlowPill, IconPill } from "./Pill";
+import { BlockPill, GlowPill } from "./Pill";
 
 const card = "group relative overflow-hidden rounded-[20px] bg-surface p-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)]";
 
@@ -12,7 +12,7 @@ export const Bento = () => (
   <section className="px-6 pb-32 md:pb-48">
     <div className="mx-auto max-w-7xl">
       <h2 className="max-w-5xl font-display text-[clamp(2.25rem,4.4vw,4rem)] leading-[1.05] font-semibold tracking-[-0.03em] text-balance">
-        Look up <GlowPill />, click the block <IconPill /> and you're back in the right tab.
+        Look up <GlowPill />, click the block <BlockPill /> and you're back in the right tab.
       </h2>
 
       <div className="mt-16 grid grid-flow-dense grid-cols-1 gap-3 md:grid-cols-6">

@@ -22,7 +22,7 @@ export const Hero = () => {
           <h1 data-hero-chunk className="max-w-6xl font-display text-[clamp(3rem,6vw,6rem)] leading-[0.98] font-semibold tracking-[-0.035em] text-balance">
             Your notch knows when your agent needs you.
           </h1>
-          <div className="mt-10 flex max-w-xl flex-col gap-8">
+          <div className="mt-10 flex max-w-lg flex-col gap-8">
             <p data-hero-chunk className="text-lg leading-relaxed text-pretty text-muted md:text-xl">
               Krasnotch lights up the MacBook notch while Claude Code works, shifts its glow the moment it needs
               you, and takes you back to the right tab in one click.
@@ -34,7 +34,7 @@ export const Hero = () => {
             <p data-hero-chunk className="text-sm text-muted">Free and open source. macOS 15 or later, Apple silicon and Intel.</p>
           </div>
         </div>
-        <div data-hero-display className="relative -mt-4 ml-auto w-full max-w-4xl md:-mt-24 lg:w-[68%]">
+        <div data-hero-display className="relative mt-16 ml-auto w-full max-w-4xl lg:-mt-64 lg:w-[57%]">
           <Display />
         </div>
       </div>
