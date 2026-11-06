@@ -56,15 +56,18 @@ struct ThreadPillView: View {
     .shadow(color: style.primaryColor.opacity(shown ? glowOpacity : 0), radius: style.magic ? 11 : 7)
     // Tucked up behind the notch until shown; the window's top edge clips it, so it appears to drop out.
     .scaleEffect(reduceMotion || shown ? 1 : 0.55, anchor: .top)
-    .offset(y: reduceMotion || shown ? 0 : -12)
+    .offset(y: reduceMotion || shown ? 0 : -(12 + notchGap))
     .blur(radius: reduceMotion || shown ? 0 : 6)
     .opacity(shown ? 1 : 0)
     .animation(shown ? .spring(duration: 0.45, bounce: 0.32) : .spring(duration: 0.28, bounce: 0), value: shown)
-    .padding(.top, 5)
+    .padding(.top, notchGap)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .accessibilityLabel(model.state == .needsInput ? "\(model.title) needs you" : "\(model.title) is done")
     .accessibilityHint(model.hasTarget ? "Opens the thread" : "Dismisses")
   }
+
+  /// Clears the glow line under the notch (drawn 2pt below it, as thick as the style says) plus breathing room.
+  private var notchGap: CGFloat { 10 + CGFloat(min(max(model.style.thickness, 1), 12)) }
 
   private var glowOpacity: Double {
     let intensity = min(max(model.style.intensity, 0), 1)

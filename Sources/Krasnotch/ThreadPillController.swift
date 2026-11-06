@@ -5,7 +5,7 @@ import SwiftUI
 /// Shows the thread pill under the notch, keeps it up while hovered, and sends a click back to the thread.
 @MainActor
 final class ThreadPillController {
-  private static let panelSize = CGSize(width: 300, height: 52)
+  private static let panelSize = CGSize(width: 300, height: 66)
   private static let hoverOutGrace: TimeInterval = 2.5
   private static let exitDuration: TimeInterval = 0.32
 
