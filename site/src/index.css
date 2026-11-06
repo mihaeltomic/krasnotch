@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IMD Grotesk";
+  src: url("/fonts/IMDGrotesk-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --font-display: "IMD Grotesk", "Geist", sans-serif;
+
+  --color-ground: #0c0e11;
+  --color-surface: #14171c;
+  --color-line: #23272e;
+  --color-ink: #f2f3f5;
+  --color-muted: #9aa0aa;
+  --color-volt: #c4ff3a;
+}
+
+@property --angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+html {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-volt);
+  color: var(--color-ground);
+}
+
+/* The notch glow: a conic gradient of the state's colors, blurred behind a black notch shape. */
+.notch-glow {
+  position: absolute;
+  inset: -10px;
+  border-radius: 0 0 30px 30px;
+  background: conic-gradient(from var(--angle), var(--glow));
+  filter: blur(var(--blur, 14px));
+  opacity: 0.95;
+}
+.notch-glow.flow { animation: spin 3.2s linear infinite; }
+.notch-glow.pulse { animation: spin 6s linear infinite, pulse 1.3s ease-in-out infinite; }
+.notch-glow.solid { animation: breathe 2.4s ease-in-out infinite; }
+
+@keyframes spin { to { --angle: 360deg; } }
+@keyframes pulse { 50% { opacity: 0.35; } }
+@keyframes breathe { 50% { opacity: 0.7; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .notch-glow { animation: none !important; }
+}
