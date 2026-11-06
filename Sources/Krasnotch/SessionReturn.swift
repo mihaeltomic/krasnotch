@@ -80,17 +80,22 @@ final class NotchClickWindow: NSPanel {
   var onClick: (() -> Void)?
 
   init(screen: NSScreen, notch: NotchGeometry) {
-    let frame = NSRect(x: screen.frame.minX + notch.minX, y: screen.frame.maxY - notch.height - 20,
-                       width: notch.maxX - notch.minX, height: 20)
+    // Covers the notch itself, so clicking the notch is what opens the session.
+    let frame = NSRect(x: screen.frame.minX + notch.minX, y: screen.frame.maxY - notch.height,
+                       width: notch.maxX - notch.minX, height: notch.height)
     super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     isOpaque = false
     backgroundColor = .clear
     hasShadow = false
     isReleasedWhenClosed = false
+    // Nothing is drawn here; without this, clicks fall through the fully transparent window.
+    ignoresMouseEvents = false
     level = .screenSaver
     collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
   }
 
+  // Borderless windows get nudged below the menu bar unless we opt out.
+  override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
   override func mouseDown(with event: NSEvent) { onClick?() }
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }
