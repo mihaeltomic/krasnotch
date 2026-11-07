@@ -105,6 +105,25 @@ struct GeneralPane: View {
       SettingsCard(title: "Notch", footer: "Rounds the glow’s inner corners to sit flush with your MacBook’s notch.") {
         CompactSlider(title: "Corner radius", value: $model.config.notchCornerRadius, in: 0...16) { String(format: "%.0fpt", $0) }
           .padding(12)
+        SettingsRow(
+          title: "Wrap around other notch apps",
+          subtitle: "Alcove, NotchNook and similar",
+          help: "These apps draw their own shape over the notch. While the glow is on, Krasnotch checks that shape a few times a second so the glow and pill wrap around it. This needs Screen Recording permission. Only those apps’ windows are looked at, and nothing is saved."
+        ) {
+          Toggle("", isOn: Binding { model.config.adaptToNotchApps } set: { model.setAdaptToNotchApps($0) })
+            .labelsHidden().toggleStyle(.switch)
+        }
+        if model.config.adaptToNotchApps && !model.screenCaptureAllowed {
+          HStack(spacing: 10) {
+            Text("Allow Krasnotch under Screen Recording, then reopen it.")
+              .font(.system(size: 12))
+              .foregroundStyle(.secondary)
+            Spacer()
+            Button("Open Settings…") { model.openScreenRecordingSettings() }
+              .controlSize(.small)
+          }
+          .padding(12)
+        }
       }
 
       SettingsCard(title: "System") {

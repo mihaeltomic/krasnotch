@@ -169,6 +169,7 @@ import Testing
     #expect(config.showDonePill == true)
     #expect(config.showNeedsInputPill == true)
     #expect(config.pillDuration == 8)
+    #expect(config.adaptToNotchApps == false)
     #expect(config.showsPill(for: .working) == false)
   }
 
@@ -436,5 +437,53 @@ import Testing
     #expect(!text.contains("127.0.0.1"))
     #expect(text.components(separatedBy: "--unix-socket").count - 1 == 6)
     #expect(try installer.isCurrent())
+  }
+}
+
+@Suite struct NotchShapeTests {
+  /// A canvas with an opaque rounded-bottom rectangle hanging from the top, like Alcove's window.
+  static func canvas(width: Int, height: Int, shape: (minX: Int, maxX: Int, depth: Int, radius: Int), ears: Int = 0) -> [UInt8] {
+    var alpha = [UInt8](repeating: 0, count: width * height)
+    for y in 0..<shape.depth {
+      // Inset of a quarter circle in the bottom `radius` rows.
+      let fromBottom = shape.depth - 1 - y
+      var inset = 0
+      if fromBottom < shape.radius {
+        let r = Double(shape.radius), dy = r - Double(fromBottom) - 0.5
+        inset = Int((r - (r * r - dy * dy).squareRoot()).rounded())
+      }
+      // Top flares reach outward over the first few rows.
+      let flare = y < ears ? ears - y : 0
+      for x in (shape.minX + inset - flare)..<(shape.maxX - inset + flare) { alpha[y * width + x] = 255 }
+    }
+    return alpha
+  }
+
+  @Test func measuresTheShapeHangingFromTheTop() {
+    let alpha = Self.canvas(width: 300, height: 120, shape: (40, 260, 50, 12), ears: 6)
+    let shape = NotchShape.measure(alpha: alpha, width: 300, height: 120, seedX: 150)
+    #expect(shape?.minX == 40)
+    #expect(shape?.maxX == 260)
+    #expect(shape?.height == 50)
+    #expect((10...13).contains(shape?.cornerRadius ?? -1))
+  }
+
+  @Test func squareCornersMeasureZeroRadius() {
+    let alpha = Self.canvas(width: 200, height: 60, shape: (50, 150, 30, 0))
+    #expect(NotchShape.measure(alpha: alpha, width: 200, height: 60, seedX: 100) == NotchShape(minX: 50, maxX: 150, height: 30, cornerRadius: 0))
+  }
+
+  @Test func transparentAtTheSeedMeansNoShape() {
+    let alpha = Self.canvas(width: 200, height: 60, shape: (10, 60, 30, 0))
+    #expect(NotchShape.measure(alpha: alpha, width: 200, height: 60, seedX: 100) == nil)
+    #expect(NotchShape.measure(alpha: [], width: 0, height: 0, seedX: 0) == nil)
+  }
+
+  @Test func outlinesOnlyCountWhenTheyReachPastTheNotch() {
+    let notch = NotchGeometry(minX: 663, maxX: 849, height: 32)
+    #expect(!notch.isExceeded(by: NotchGeometry(minX: 664, maxX: 848, height: 31)))
+    #expect(notch.isExceeded(by: NotchGeometry(minX: 560, maxX: 950, height: 32)))
+    #expect(notch.isExceeded(by: NotchGeometry(minX: 663, maxX: 849, height: 60)))
+    #expect(notch.union(NotchGeometry(minX: 700, maxX: 950, height: 20)) == NotchGeometry(minX: 663, maxX: 950, height: 32))
   }
 }

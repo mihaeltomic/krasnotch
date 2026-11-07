@@ -19,7 +19,12 @@ final class AppModel {
   }
 
   // Settings window state. While it's open on the Glow pane, the notch previews the style being edited.
-  var settingsVisible = false { didSet { refresh() } }
+  var settingsVisible = false {
+    didSet {
+      if settingsVisible { screenCaptureAllowed = CGPreflightScreenCaptureAccess() }
+      refresh()
+    }
+  }
   var settingsPane: SettingsPane = .glow {
     didSet {
       UserDefaults.standard.set(settingsPane.rawValue, forKey: "settingsPane")
@@ -37,6 +42,8 @@ final class AppModel {
   private(set) var sessionCount = 0
   private(set) var sessions: [SessionTarget] = []
   private(set) var hooksInstalled = false
+  /// Screen Recording, needed to see the shape other notch apps draw. Checked on launch and when Settings opens.
+  private(set) var screenCaptureAllowed = CGPreflightScreenCaptureAccess()
   private(set) var serverError: String?
   var hookError: String?
 
@@ -56,6 +63,7 @@ final class AppModel {
   private var tracker = SessionTracker()
   private let overlay = OverlayController()
   private let pill = ThreadPillController()
+  private let neighbors = NotchNeighborWatcher()
   private let installer = ClaudeHookInstaller()
   private var server: EventServer?
   private var origins: [String: SessionOrigin] = [:]
@@ -69,6 +77,7 @@ final class AppModel {
     let stored = UserDefaults.standard.string(forKey: Self.configKey).map { Data($0.utf8) }
     config = stored.flatMap { try? JSONDecoder().decode(GlowConfig.self, from: $0) } ?? GlowConfig()
     tracker.doneDuration = config.doneDuration
+    neighbors.onChange = { [weak self] in self?.refresh() }
   }
 
   func start() {
@@ -163,6 +172,19 @@ final class AppModel {
     refresh()
   }
 
+  /// Turns "wrap around other notch apps" on or off; turning it on asks for Screen Recording the first time.
+  func setAdaptToNotchApps(_ on: Bool) {
+    config.adaptToNotchApps = on
+    guard on, !screenCaptureAllowed else { return }
+    screenCaptureAllowed = CGRequestScreenCaptureAccess()
+    refresh()
+  }
+
+  func openScreenRecordingSettings() {
+    guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") else { return }
+    NSWorkspace.shared.open(url)
+  }
+
   func setHooksInstalled(_ install: Bool) {
     do {
       if install { try installer.install() } else { try installer.uninstall() }
@@ -187,6 +209,7 @@ final class AppModel {
     origins = origins.filter { activeIDs.contains($0.key) }
     originLookups.formIntersection(activeIDs)
     sessions = active.map { SessionTarget(id: $0.id, state: $0.state, origin: origins[$0.id]) }
+    updateNeighborWatch()
     overlay.render(state: displayedState, config: config, sessions: sessions)
     if let preview, config.enabled, config.showsPill(for: preview) {
       pill.preview(state: preview, style: config[preview], hideFromCapture: config.hideFromScreenCapture)
@@ -194,6 +217,19 @@ final class AppModel {
       pill.endPreview()
     }
     scheduleExpiry(after: now)
+  }
+
+  /// Measures other notch apps only while there's a glow to wrap around them.
+  private func updateNeighborWatch() {
+    guard config.enabled, config.adaptToNotchApps, screenCaptureAllowed else {
+      neighbors.reset()
+      overlay.outlines = [:]
+      pill.outlines = [:]
+      return
+    }
+    if displayedState != nil { neighbors.start() } else { neighbors.stop() }
+    overlay.outlines = neighbors.outlines
+    pill.outlines = neighbors.outlines
   }
 
   private func scheduleExpiry(after now: Date) {

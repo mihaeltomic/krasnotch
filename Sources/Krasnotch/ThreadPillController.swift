@@ -16,6 +16,18 @@ final class ThreadPillController {
   private var dismissTask: Task<Void, Never>?
   /// While Settings previews a state on the notch, the pill shows it too and real pills wait.
   private var previewing = false
+  /// Shapes other notch apps draw over the notch; the pill drops out from under them.
+  var outlines: [CGDirectDisplayID: NeighborOutline] = [:] {
+    didSet {
+      guard outlines != oldValue, model.visible, let panel, let screen = Self.screen else { return }
+      let target = frame(on: screen)
+      NSAnimationContext.runAnimationGroup { context in
+        context.duration = 0.3
+        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        panel.animator().setFrame(target, display: true)
+      }
+    }
+  }
 
   func show(session: String, state: GlowState, style: GlowStyle, title: String, origin: SessionOrigin?,
             duration: TimeInterval, hideFromCapture: Bool) {
@@ -39,7 +51,7 @@ final class ThreadPillController {
 
   private func present(session: String?, state: GlowState, style: GlowStyle, title: String, origin: SessionOrigin?,
                        hideFromCapture: Bool) {
-    guard let screen = NSScreen.screens.first(where: \.isBuiltIn) ?? NSScreen.main else { return }
+    guard let screen = Self.screen else { return }
     self.session = session
     self.origin = origin
     model.title = title
@@ -49,7 +61,7 @@ final class ThreadPillController {
 
     let panel = panel ?? makePanel()
     panel.sharingType = hideFromCapture ? .none : .readOnly
-    panel.setFrame(Self.frame(on: screen), display: false)
+    panel.setFrame(frame(on: screen), display: false)
     if !model.visible {
       panel.orderFrontRegardless()
       // Let the hidden state render first so the drop animates from behind the notch.
@@ -102,11 +114,16 @@ final class ThreadPillController {
     return panel
   }
 
-  /// Centered on the notch, top edge flush with its bottom (or with the menu bar's on screens without one).
-  private static func frame(on screen: NSScreen) -> CGRect {
+  private static var screen: NSScreen? { NSScreen.screens.first(where: \.isBuiltIn) ?? NSScreen.main }
+
+  /// Centered on the notch (or the shape another app draws over it), top edge flush with its bottom,
+  /// or with the menu bar's on screens without a notch.
+  private func frame(on screen: NSScreen) -> CGRect {
+    let panelSize = Self.panelSize
     let top: CGFloat
     let midX: CGFloat
-    if let notch = screen.notch {
+    if let hardware = screen.notch {
+      let notch = outlines[screen.displayID].map { hardware.union($0.notch) } ?? hardware
       top = screen.frame.maxY - notch.height
       midX = screen.frame.minX + (notch.minX + notch.maxX) / 2
     } else {

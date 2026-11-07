@@ -96,12 +96,14 @@ public struct GlowConfig: Codable, Equatable, Sendable {
   public var showNeedsInputPill = true
   /// Seconds the pill stays up (it holds while hovered).
   public var pillDuration = 8.0
+  /// Wraps the glow and pill around the shape another notch app draws over the notch (needs Screen Recording).
+  public var adaptToNotchApps = false
 
   public init() {}
 
   private enum CodingKeys: String, CodingKey {
     case enabled, working, needsInput, done, topCornerRadius, bottomCornerRadius, notchCornerRadius
-    case doneDuration, showOnExternalDisplays, hideFromScreenCapture, brightness, showDonePill, showNeedsInputPill, pillDuration
+    case doneDuration, showOnExternalDisplays, hideFromScreenCapture, brightness, showDonePill, showNeedsInputPill, pillDuration, adaptToNotchApps
   }
 
   /// Missing keys fall back to defaults, so adding a setting never wipes someone's saved config.
@@ -122,6 +124,7 @@ public struct GlowConfig: Codable, Equatable, Sendable {
     showDonePill = try c.decodeIfPresent(Bool.self, forKey: .showDonePill) ?? d.showDonePill
     showNeedsInputPill = try c.decodeIfPresent(Bool.self, forKey: .showNeedsInputPill) ?? d.showNeedsInputPill
     pillDuration = try c.decodeIfPresent(Double.self, forKey: .pillDuration) ?? d.pillDuration
+    adaptToNotchApps = try c.decodeIfPresent(Bool.self, forKey: .adaptToNotchApps) ?? d.adaptToNotchApps
   }
 
   public func showsPill(for state: GlowState) -> Bool {

@@ -20,6 +20,8 @@ final class OverlayController: NSObject {
   private var windows: [CGDirectDisplayID: OverlayWindow] = [:]
   private var visible = false
   private var last: (state: GlowState?, config: GlowConfig)?
+  /// Shapes other notch apps draw over the notch; the glow wraps around them.
+  var outlines: [CGDirectDisplayID: NeighborOutline] = [:]
 
   override init() {
     super.init()
@@ -141,7 +143,16 @@ final class OverlayController: NSObject {
   }
 
   private func geometry(for screen: NSScreen, config: GlowConfig) -> EdgeGeometry {
-    EdgeGeometry(
+    if let notch = screen.notch, let outline = outlines[screen.displayID] {
+      return EdgeGeometry(
+        size: screen.frame.size,
+        topCornerRadius: config.topCornerRadius,
+        bottomCornerRadius: config.bottomCornerRadius,
+        notch: notch.union(outline.notch),
+        notchCornerRadius: outline.cornerRadius
+      )
+    }
+    return EdgeGeometry(
       size: screen.frame.size,
       topCornerRadius: config.topCornerRadius,
       bottomCornerRadius: config.bottomCornerRadius,
