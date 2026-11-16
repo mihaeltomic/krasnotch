@@ -3,6 +3,9 @@
 #
 #   VERSION=1.2.0 scripts/build-app.sh                  # ad-hoc signed, for local use
 #   DEVELOPER_ID="Developer ID Application: …" …        # hardened runtime + Developer ID, for releases
+#   SIGN_IDENTITY="Apple Development" …                 # any local certificate, for your own Mac: unlike an
+#                                                       # ad-hoc signature, it keeps the same identity across
+#                                                       # rebuilds, so the Screen Recording grant survives them
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -51,6 +54,8 @@ PLIST
 
 if [ -n "${DEVELOPER_ID:-}" ]; then
   codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID" "$APP"
+elif [ -n "${SIGN_IDENTITY:-}" ]; then
+  codesign --force --sign "$SIGN_IDENTITY" "$APP"
 else
   codesign --force --sign - "$APP"
 fi
