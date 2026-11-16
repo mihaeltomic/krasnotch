@@ -27,6 +27,8 @@ xattr -dr com.apple.quarantine /Applications/Krasnotch.app
 
 Open **Settings…** to choose the animation, colors, thickness, glow intensity, the dithered look, or the **Magic?** glitter mode for each state.
 
+If you also run Alcove, NotchNook or another app that draws over the notch, turn on **Wrap around other notch apps**. The glow and pill then follow that app's shape instead of hiding behind it. macOS asks for Screen Recording permission the first time; reopen Krasnotch after allowing it.
+
 ### Other agents and scripts
 
 Anything can report a state by sending a request to Krasnotch's socket:
@@ -40,6 +42,7 @@ curl --unix-socket "$HOME/Library/Application Support/Krasnotch/events.sock" \
 
 - Krasnotch makes no network connections. Events arrive over a Unix domain socket in `~/Library/Application Support/Krasnotch/`. The folder is `0700`, the socket is `0600`, and every connection's peer uid is checked. Browsers, other macOS users and other machines can't reach it.
 - Hook payloads stay on your Mac. The app reads only the event name, session id, tool name, notification type and working directory.
+- **Wrap around other notch apps** is off by default and is the only feature that needs Screen Recording. While the glow is on, Krasnotch captures just the windows other apps hang over the notch, at one pixel per point and up to a few times a second, to measure their outline. Each capture is read for its shape and discarded. Nothing is saved, and the rest of your screen is never captured.
 - Clicking the notch opens only what the session's own process ancestry points to (Terminal, iTerm2, VS Code, Cursor or a T3 Code thread). Terminal tabs are selected with AppleScript, so macOS asks once for Automation permission.
 
 Found a security issue? Please open a private security advisory on this repository rather than a public issue.
