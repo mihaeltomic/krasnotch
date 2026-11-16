@@ -1,43 +1,20 @@
-import { DOWNLOAD, REPO } from "../links";
-import { gsap, useGSAP } from "../gsap";
+import type { ReactNode } from "react";
+import { DOWNLOAD } from "../links";
 import { Button } from "./Button";
-import { Display } from "./Display";
-import { useRef } from "react";
 
-export const Hero = () => {
-  const ref = useRef<HTMLElement>(null);
-
-  useGSAP(
-    () => {
-      gsap.from("[data-hero-chunk]", { y: 24, opacity: 0, duration: 0.8, ease: "power3.out", stagger: 0.1 });
-      gsap.from("[data-hero-display]", { y: 80, opacity: 0, duration: 1.2, ease: "power3.out", delay: 0.35 });
-    },
-    { scope: ref },
-  );
-
-  return (
-    <header id="top" ref={ref} className="relative px-6 pt-40 md:pt-52">
-      <div className="mx-auto max-w-7xl">
-        <div className="relative z-10">
-          <h1 data-hero-chunk className="max-w-6xl font-display text-[clamp(3rem,6vw,6rem)] leading-[0.98] font-semibold tracking-[-0.035em] text-balance">
-            Your notch knows when your agent needs you.
-          </h1>
-          <div className="mt-10 flex max-w-lg flex-col gap-8">
-            <p data-hero-chunk className="text-lg leading-relaxed text-pretty text-muted md:text-xl">
-              Krasnotch lights up the MacBook notch while Claude Code works, shifts its glow the moment it needs
-              you, and takes you back to the right tab in one click.
-            </p>
-            <div data-hero-chunk className="flex flex-wrap items-center gap-3">
-              <Button href={DOWNLOAD} size="lg">Download for Mac</Button>
-              <Button href={REPO} size="lg" variant="ghost">Read the source</Button>
-            </div>
-            <p data-hero-chunk className="text-sm text-muted">Free and open source. macOS 15 or later, Apple silicon and Intel.</p>
-          </div>
-        </div>
-        <div data-hero-display className="relative mt-16 ml-auto w-full max-w-4xl lg:-mt-64 lg:w-[57%]">
-          <Display />
-        </div>
-      </div>
-    </header>
-  );
-};
+/** One screen: the wordmark, one line, the download, and the controls that drive the notch above. */
+export const Hero = ({ children }: { children: ReactNode }) => (
+  <header id="top" className="flex min-h-svh flex-col items-center justify-center px-4 pt-[calc(var(--notch-h)+3rem)] pb-10 md:px-6">
+    <h1 className="rise font-display text-[clamp(4.25rem,17.5vw,17rem)] leading-[0.82] font-semibold tracking-[-0.045em] select-none">
+      krasnotch
+    </h1>
+    <p className="rise mt-6 max-w-xl text-center text-xl text-pretty text-ink/85 [animation-delay:80ms] md:mt-8 md:text-2xl">
+      Your notch knows when your agent needs you.
+    </p>
+    <div className="rise mt-7 flex flex-col items-center gap-3 [animation-delay:160ms] sm:flex-row sm:gap-5">
+      <Button href={DOWNLOAD} size="lg">Download for Mac</Button>
+      <p className="font-mono text-xs text-muted">Free · open source · macOS 15+</p>
+    </div>
+    <div className="rise mt-12 w-full max-w-5xl [animation-delay:240ms] md:mt-14">{children}</div>
+  </header>
+);

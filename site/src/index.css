@@ -24,20 +24,33 @@
   --font-mono: "Geist Mono", ui-monospace, monospace;
   --font-display: "IMD Grotesk", "Geist", sans-serif;
 
-  --color-ground: #0c0e11;
-  --color-surface: #14171c;
-  --color-line: #23272e;
+  --color-ground: #08090b;
   --color-ink: #f2f3f5;
-  --color-muted: #9aa0aa;
+  --color-muted: #8d939e;
   --color-volt: #c4ff3a;
 }
 
+/* The current glow's lead color; registered so the page tint can fade between states. */
+@property --accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #2ea8ff;
+}
+
 html {
+  --notch-h: 80px;
   background: var(--color-ground);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   scroll-behavior: smooth;
+  transition: --accent 600ms ease;
+}
+
+body {
+  overflow-x: hidden;
+  /* The glow spills down the "screen" from the notch. */
+  background: radial-gradient(70% 55vh at 50% 0, color-mix(in oklab, var(--accent) 16%, transparent), transparent 75%) no-repeat;
 }
 
 ::selection {
@@ -45,29 +58,64 @@ html {
   color: var(--color-ground);
 }
 
-/* Ambient light: two soft radial washes plus fine grain, fixed behind everything. */
-.ambient {
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(40% 35% at 78% 12%, rgb(142 92 255 / 0.12), transparent 70%),
-    radial-gradient(35% 30% at 12% 30%, rgb(196 255 58 / 0.06), transparent 70%),
-    var(--color-ground);
-}
-.ambient::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: 0.06;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
 }
 
-@keyframes marquee {
-  to { transform: translateX(-50%); }
+/* Lets the glow canvas end softly instead of at its bottom edge. */
+.notch-fade {
+  mask-image: linear-gradient(#000 72%, transparent);
+}
+
+.eye {
+  animation: blink 5.5s infinite;
+}
+@keyframes blink {
+  0%, 94%, 100% { scale: 1 1; }
+  97% { scale: 1 0.1; }
+}
+
+.rise {
+  animation: rise 700ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+@keyframes rise {
+  from { opacity: 0; translate: 0 16px; }
+}
+
+.slider {
+  height: 1.5rem;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.14);
+}
+.slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.14);
+}
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--color-ink);
+}
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  .eye, .rise { animation: none; }
 }

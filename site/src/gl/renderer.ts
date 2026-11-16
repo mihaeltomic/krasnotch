@@ -19,6 +19,8 @@ export type GlowStyle = {
 };
 
 const TAU = Math.PI * 2;
+type Head = { len: number; start: number; n: number };
+
 const BAYER8 = [0,32,8,40,2,34,10,42,48,16,56,24,50,18,58,26,12,44,4,36,14,46,6,38,60,28,52,20,62,30,54,22,3,35,11,43,1,33,9,41,51,19,59,27,49,17,57,25,15,47,7,39,13,45,5,37,63,31,55,23,61,29,53,21];
 const rand = (n: number) => {
   const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
@@ -31,6 +33,8 @@ const makeCanvas = () => document.createElement("canvas");
 export class NotchGlowRenderer {
   private ctx: CanvasRenderingContext2D;
   private off = makeCanvas().getContext("2d")!;
+  private mask = makeCanvas().getContext("2d")!;
+  private lowMask = makeCanvas().getContext("2d")!;
   private full = makeCanvas().getContext("2d")!;
   private low = makeCanvas().getContext("2d", { willReadFrequently: true })!;
   private W = 0;
@@ -54,7 +58,7 @@ export class NotchGlowRenderer {
   layout(width: number, height: number, dpr: number, notchWidth: number) {
     const W = Math.round(width * dpr), H = Math.round(height * dpr);
     if (W !== this.W || H !== this.H) {
-      for (const c of [this.canvas, this.off.canvas, this.full.canvas]) { c.width = W; c.height = H; }
+      for (const c of [this.canvas, this.off.canvas, this.mask.canvas, this.full.canvas]) { c.width = W; c.height = H; }
       this.W = W;
       this.H = H;
     }
@@ -64,8 +68,10 @@ export class NotchGlowRenderer {
     this.PT = this.NH / 32;
     this.CX = W / 2;
     this.CELL = Math.max(2, Math.round(2 * this.PT));
-    this.low.canvas.width = Math.ceil(W / this.CELL);
-    this.low.canvas.height = Math.ceil(H / this.CELL);
+    const lw = Math.ceil(W / this.CELL), lh = Math.ceil(H / this.CELL);
+    if (lw !== this.low.canvas.width || lh !== this.low.canvas.height) {
+      for (const c of [this.low.canvas, this.lowMask.canvas]) { c.width = lw; c.height = lh; }
+    }
 
     const { CX, NW, NH, R } = this, L = CX - NW / 2, RX = CX + NW / 2;
     const o = new Path2D();
@@ -99,38 +105,55 @@ export class NotchGlowRenderer {
     return [RX, NH - R - d];
   }
 
-  /** Strokes a lit head (fading dashes) onto `c`; `start` is where its tail begins along the outline. */
-  private strokeHead(c: CanvasRenderingContext2D, width: number, style: string | CanvasGradient, len: number, start: number, n: number) {
-    c.clearRect(0, 0, this.W, this.H);
-    c.lineWidth = width; c.lineJoin = "round"; c.strokeStyle = style;
-    for (let i = 0; i < n; i++) {
-      c.lineCap = i === n - 1 ? "round" : "butt";
-      c.setLineDash([len / n + 0.5, this.PATH_LEN * 4]);
-      c.lineDashOffset = -(start + (len * i) / n);
-      c.globalAlpha = (i + 1) / n;
+  /** Strokes the outline in white onto `c`: all of it, or just a lit head whose dashes fade toward its tail. */
+  private strokeMask(c: CanvasRenderingContext2D, width: number, head: Head | null, scale = 1) {
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+    c.setTransform(scale, 0, 0, scale, 0, 0);
+    c.lineWidth = width; c.lineJoin = "round"; c.lineCap = "round"; c.strokeStyle = "#fff";
+    if (!head) { c.stroke(this.outline); return; }
+    for (let i = 0; i < head.n; i++) {
+      c.lineCap = i === head.n - 1 ? "round" : "butt";
+      c.setLineDash([head.len / head.n + 0.5, this.PATH_LEN * 4]);
+      c.lineDashOffset = -(head.start + (head.len * i) / head.n);
+      c.globalAlpha = (i + 1) / head.n;
       c.stroke(this.outline);
     }
     c.setLineDash([]); c.globalAlpha = 1;
   }
 
-  private ditheredHaze(band: { w: number; blur: number }, colors: readonly string[], angle: number, alpha: number, head: { len: number; start: number; n: number } | null) {
-    const { low, full, ctx, CELL } = this, W = low.canvas.width, H = low.canvas.height;
-    low.setTransform(1, 0, 0, 1, 0, 0); low.clearRect(0, 0, W, H);
-    low.setTransform(1 / CELL, 0, 0, 1 / CELL, 0, 0);
-    low.filter = `blur(${(band.blur / CELL).toFixed(2)}px)`;
-    low.lineWidth = band.w; low.lineJoin = "round"; low.lineCap = "round"; low.strokeStyle = "#fff";
-    if (head) {
-      for (let i = 0; i < head.n; i++) {
-        low.lineCap = i === head.n - 1 ? "round" : "butt";
-        low.setLineDash([head.len / head.n + 0.5, this.PATH_LEN * 4]);
-        low.lineDashOffset = -(head.start + (head.len * i) / head.n);
-        low.globalAlpha = (i + 1) / head.n; low.stroke(this.outline);
-      }
-      low.setLineDash([]); low.globalAlpha = 1;
+  /** Copies `src` into `dst` with a Gaussian blur. Drawn as a shadow because Safari ignores `ctx.filter`. */
+  private blurInto(dst: CanvasRenderingContext2D, src: CanvasRenderingContext2D, sigma: number) {
+    const w = dst.canvas.width;
+    dst.save();
+    dst.setTransform(1, 0, 0, 1, 0, 0);
+    dst.globalCompositeOperation = "source-over";
+    dst.clearRect(0, 0, w, dst.canvas.height);
+    if (sigma < 0.4) {
+      dst.drawImage(src.canvas, 0, 0);
     } else {
-      low.stroke(this.outline);
+      // The source lands off-canvas; only its shadow, offset back by the same amount, is visible.
+      dst.shadowColor = "#fff"; dst.shadowBlur = sigma * 2; dst.shadowOffsetX = w * 2;
+      dst.drawImage(src.canvas, -w * 2, 0);
     }
-    low.filter = "none";
+    dst.restore();
+  }
+
+  /** Blurs the mask, tints it and lays it on the main canvas. */
+  private composite(sigma: number, alpha: number, fill: string | CanvasGradient, second: CanvasGradient | null = null) {
+    const { off, ctx, W, H } = this;
+    this.blurInto(off, this.mask, sigma);
+    off.globalCompositeOperation = "source-in"; off.fillStyle = fill; off.fillRect(0, 0, W, H);
+    if (second) { off.globalCompositeOperation = "source-atop"; off.globalAlpha = 0.5; off.fillStyle = second; off.fillRect(0, 0, W, H); off.globalAlpha = 1; }
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(off.canvas, 0, 0);
+    ctx.globalAlpha = 1;
+  }
+
+  private ditheredHaze(band: { w: number; blur: number }, colors: readonly string[], angle: number, alpha: number, head: Head | null) {
+    const { low, full, ctx, CELL } = this, W = low.canvas.width, H = low.canvas.height;
+    this.strokeMask(this.lowMask, band.w, head, 1 / CELL);
+    this.blurInto(low, this.lowMask, band.blur / CELL);
     const img = low.getImageData(0, 0, W, H), px = img.data;
     let peak = 0;
     for (let i = 3; i < px.length; i += 4) peak = Math.max(peak, px[i]);
@@ -194,8 +217,8 @@ export class NotchGlowRenderer {
     if (f === null) return;
     const len = PATH_LEN * 0.16, end = f * PATH_LEN;
     for (const [w, blur, color, a] of [[2 * T * 2.2, 1.4 * T, colors[0], 0.95], [2 * T * 0.9, 0.15 * T, "#ffffff", 1]] as const) {
-      this.strokeHead(this.off, w, color, len, end - len, 16);
-      ctx.save(); ctx.filter = `blur(${blur.toFixed(1)}px)`; ctx.globalAlpha = a; ctx.drawImage(this.off.canvas, 0, 0); ctx.restore();
+      this.strokeMask(this.mask, w, { len, start: end - len, n: 16 });
+      this.composite(blur, a, color);
     }
   }
 
@@ -224,29 +247,14 @@ export class NotchGlowRenderer {
       { w: 2 * T, blur: 0.15 * T, a: 1 },
     ];
     ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, W, H);
-    ctx.lineJoin = "round";
+    ctx.globalAlpha = 1;
+    if (background === "transparent") ctx.clearRect(0, 0, W, H);
+    else { ctx.fillStyle = background; ctx.fillRect(0, 0, W, H); }
+    const head: Head | null = travel === null ? null : { len: PATH_LEN * 0.38, start: travel * (PATH_LEN * 1.38) - PATH_LEN * 0.38, n: 24 };
     bands.forEach((b, bi) => {
-      if (bi === 0 && s.dither) {
-        const head = travel === null ? null : { len: PATH_LEN * 0.38, start: travel * (PATH_LEN * 1.38) - PATH_LEN * 0.38, n: 24 };
-        this.ditheredHaze(b, s.colors, a1, b.a * root * 0.95, head);
-        return;
-      }
-      ctx.save();
-      ctx.filter = `blur(${b.blur.toFixed(1)}px)`;
-      ctx.lineWidth = b.w;
-      ctx.lineCap = "round";
-      if (travel !== null) {
-        const len = PATH_LEN * 0.38;
-        this.strokeHead(this.off, b.w, this.conic(a1, s.colors, this.off), len, travel * (PATH_LEN + len) - len, 24);
-        ctx.globalAlpha = b.a * root;
-        ctx.drawImage(this.off.canvas, 0, 0);
-      } else {
-        ctx.globalAlpha = b.a * root; ctx.strokeStyle = g1; ctx.stroke(this.outline);
-        if (g2) { ctx.globalAlpha = b.a * root * 0.5; ctx.strokeStyle = g2; ctx.stroke(this.outline); }
-      }
-      ctx.restore();
+      if (bi === 0 && s.dither) { this.ditheredHaze(b, s.colors, a1, b.a * root * 0.95, head); return; }
+      this.strokeMask(this.mask, b.w, head);
+      this.composite(b.blur, b.a * root, g1, g2);
     });
     if (s.magic) this.magic(local, s);
     ctx.globalAlpha = 1;
