@@ -51,6 +51,9 @@ export const Notch = ({ state, style, onReturn }: NotchProps) => {
   }, [returned, onReturn]);
 
   const pill = returned ? "Back in Terminal, tab 2" : STATE_COPY[state].pill;
+  // The pill keeps its last text while it fades out, so the words never change mid-exit.
+  const shown = useRef(pill);
+  if (pill) shown.current = pill;
   const eye = height * 0.24;
 
   return (
@@ -62,7 +65,7 @@ export const Notch = ({ state, style, onReturn }: NotchProps) => {
         type="button"
         onClick={() => setReturned(true)}
         aria-label="Notch. Click to jump back to the agent's terminal tab."
-        className="fixed top-0 left-1/2 z-40 -translate-x-1/2 cursor-pointer bg-black"
+        className="fixed top-0 left-1/2 z-40 origin-top -translate-x-1/2 cursor-pointer bg-black transition-[scale] duration-150 ease-out active:scale-[0.96]"
         style={{ width, height, borderRadius: `0 0 ${height * 0.245}px ${height * 0.245}px` }}
       >
         <span ref={eyes} className="absolute inset-0 flex items-center justify-center transition-[translate] duration-200 ease-out" style={{ gap: eye * 0.85 }}>
@@ -75,11 +78,11 @@ export const Notch = ({ state, style, onReturn }: NotchProps) => {
           type="button"
           onClick={() => setReturned(true)}
           tabIndex={pill ? 0 : -1}
-          className={`flex items-center gap-2 rounded-full bg-black px-3.5 py-2 text-[13px] font-semibold shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14),0_10px_30px_-8px_rgb(0_0_0/0.8)] transition-[opacity,translate,scale] duration-300 ease-[cubic-bezier(0.2,0,0,1)] active:scale-[0.96] ${pill ? "pointer-events-auto opacity-100" : "-translate-y-2 opacity-0"}`}
+          className={`flex items-center gap-2 rounded-full bg-black px-3.5 py-2 text-[13px] font-semibold shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14),0_10px_30px_-8px_rgb(0_0_0/0.8)] origin-top transition-[opacity,translate,scale] ease-out active:scale-[0.96] motion-reduce:translate-y-0 motion-reduce:scale-100 ${pill ? "pointer-events-auto opacity-100 duration-250" : "-translate-y-2 scale-[0.96] opacity-0 duration-150"}`}
         >
           <span className="size-2 rounded-full bg-(--accent)" />
-          {pill || "Back in Terminal, tab 2"}
-          {!returned && <span className="font-normal text-muted">click to return</span>}
+          <span key={shown.current} className="swap">{shown.current}</span>
+          {!returned && pill && <span className="font-normal text-muted">click to return</span>}
         </button>
       </div>
     </>

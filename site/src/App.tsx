@@ -57,6 +57,7 @@ export const App = () => {
 
   return (
     <>
+      <div className="ambient" aria-hidden="true" />
       <MenuBar />
       <Notch state={state} style={style} onReturn={() => pickState("working")} />
       <main>

@@ -78,7 +78,7 @@ export const Controls = ({ state, style, onState, onStyle }: ControlsProps) => {
                 aria-label={key}
                 aria-pressed={palette === key}
                 onClick={() => onStyle({ colors: PALETTES[key] })}
-                className={`grid size-9 place-items-center rounded-full transition-[scale,box-shadow] duration-150 ease-out active:scale-[0.9] ${
+                className={`grid size-9 place-items-center rounded-full transition-[scale,box-shadow] duration-150 ease-out active:scale-[0.96] ${
                   palette === key ? "shadow-[inset_0_0_0_2px_var(--color-ink)]" : "hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.3)]"
                 }`}
               >
@@ -88,9 +88,11 @@ export const Controls = ({ state, style, onState, onStyle }: ControlsProps) => {
           </Row>
           <Row label="Size">
             <input type="range" aria-label="Thickness" min={2} max={8} step={0.5} value={style.th} onChange={(e) => onStyle({ th: Number(e.target.value) })} className="slider min-w-0 flex-1" />
-            <span className="w-10 text-right font-mono text-xs text-muted tabular-nums">{style.th} pt</span>
-            <input type="range" aria-label="Intensity" min={0.3} max={1} step={0.05} value={style.int} onChange={(e) => onStyle({ int: Number(e.target.value) })} className="slider ml-3 min-w-0 flex-1" />
-            <span className="w-10 text-right font-mono text-xs text-muted tabular-nums">{Math.round(style.int * 100)}%</span>
+            <span className="w-12 text-right font-mono text-xs text-muted tabular-nums">{style.th} pt</span>
+          </Row>
+          <Row label="Glow">
+            <input type="range" aria-label="Intensity" min={0.3} max={1} step={0.05} value={style.int} onChange={(e) => onStyle({ int: Number(e.target.value) })} className="slider min-w-0 flex-1" />
+            <span className="w-12 text-right font-mono text-xs text-muted tabular-nums">{Math.round(style.int * 100)}%</span>
           </Row>
           <Row label="Finish">
             <button type="button" aria-pressed={style.dither} onClick={() => onStyle({ dither: !style.dither })} className={chip(style.dither)}>Dither</button>

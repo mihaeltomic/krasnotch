@@ -28,29 +28,50 @@
   --color-ink: #f2f3f5;
   --color-muted: #8d939e;
   --color-volt: #c4ff3a;
+
+  /* One curve for every press, hover and entrance. */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* The current glow's lead color; registered so the page tint can fade between states. */
-@property --accent {
+/* Registered so the page tint can fade between states. Not inherited: animating it restyles one element, not the page. */
+@property --tint {
   syntax: "<color>";
-  inherits: true;
+  inherits: false;
   initial-value: #2ea8ff;
 }
 
 html {
   --notch-h: 80px;
+  --accent: #2ea8ff;
   background: var(--color-ground);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   scroll-behavior: smooth;
-  transition: --accent 600ms ease;
 }
 
 body {
   overflow-x: hidden;
-  /* The glow spills down the "screen" from the notch. */
-  background: radial-gradient(70% 55vh at 50% 0, color-mix(in oklab, var(--accent) 16%, transparent), transparent 75%) no-repeat;
+}
+
+/* The glow spills down the "screen" from the notch, in the current state's color. */
+.ambient {
+  --tint: var(--accent);
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: -1;
+  height: 55vh;
+  pointer-events: none;
+  background: radial-gradient(70% 100% at 50% 0, color-mix(in oklab, var(--tint) 16%, transparent), transparent 75%);
+  transition: --tint 600ms ease;
+}
+
+/* New pill text sharpens into place instead of popping. */
+.swap {
+  animation: swap 200ms var(--ease-out) both;
+}
+@keyframes swap {
+  from { opacity: 0; filter: blur(4px); }
 }
 
 ::selection {
@@ -77,7 +98,7 @@ body {
 }
 
 .rise {
-  animation: rise 700ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: rise 700ms var(--ease-out) both;
 }
 @keyframes rise {
   from { opacity: 0; translate: 0 16px; }
@@ -106,6 +127,10 @@ body {
   margin-top: -6px;
   border-radius: 50%;
   background: var(--color-ink);
+  transition: scale 150ms var(--ease-out);
+}
+.slider:active::-webkit-slider-thumb {
+  scale: 1.2;
 }
 .slider::-moz-range-thumb {
   width: 16px;
@@ -118,4 +143,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .eye, .rise { animation: none; }
+  .swap { animation-name: fade; }
+}
+
+@keyframes fade {
+  from { opacity: 0; }
 }
