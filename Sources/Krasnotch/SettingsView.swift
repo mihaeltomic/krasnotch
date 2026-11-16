@@ -108,7 +108,7 @@ struct GeneralPane: View {
         SettingsRow(
           title: "Wrap around other notch apps",
           subtitle: "Alcove, NotchNook and similar",
-          help: "These apps draw their own shape over the notch. While the glow is on, Krasnotch checks that shape a few times a second so the glow and pill wrap around it. This needs Screen Recording permission. Only those apps’ windows are looked at, and nothing is saved."
+          help: "These apps draw their own shape over the notch. While the glow is on, Krasnotch checks that shape several times a second so the glow and pill wrap around it. This needs Screen Recording permission. Only those apps’ windows are looked at, and nothing is saved."
         ) {
           Toggle("", isOn: Binding { model.config.adaptToNotchApps } set: { model.setAdaptToNotchApps($0) })
             .labelsHidden().toggleStyle(.switch)

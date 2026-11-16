@@ -19,27 +19,28 @@ struct NeighborOutline: Equatable {
 /// the visible shape is read from a 1x capture of just those windows, which needs Screen Recording.
 @MainActor
 final class NotchNeighborWatcher {
-  /// Sampling is quick right after a change and backs off once the shape has held still a while.
-  private static let quickInterval: Duration = .milliseconds(400)
-  private static let steadyInterval: Duration = .seconds(1)
-  private static let samplesBeforeSteady = 5
-  private static let contentRefetch: Duration = .seconds(2)
-  /// How many samples in a row a window may be uncapturable before it's passed over. Covers the wait for
-  /// the next content refetch, which is when a window that just appeared gets its capture handle.
-  private static let captureGrace = 6
+  /// The glow follows the shape as it moves: every sample that differs is applied straight away.
+  /// Sampling is back to back right after a change and backs off once the shape has held still a while.
+  /// Pauses between samples; a 1x capture of one notch window adds about 50 ms to each.
+  private static let quickInterval: Duration = .milliseconds(15)
+  private static let steadyInterval: Duration = .milliseconds(150)
+  private static let samplesBeforeSteady = 8
+  /// Listing shareable content takes tens of milliseconds, far more than a capture.
+  private static let contentRefetch: Duration = .milliseconds(500)
+  /// How long a window may stay uncapturable before it's passed over. Covers the wait for the next
+  /// content refetch, which is when a window that just appeared gets its capture handle.
+  private static let captureGrace: Duration = .milliseconds(1500)
 
   /// Outlines that reach past the hardware notch, per display. Kept while stopped.
   private(set) var outlines: [CGDirectDisplayID: NeighborOutline] = [:]
   var onChange: (() -> Void)?
 
   private var task: Task<Void, Never>?
-  /// A changed measurement waits for one more matching sample, so a shape mid-animation is skipped.
-  private var pending: [CGDirectDisplayID: NeighborOutline]?
   private var steadySamples = 0
   private var captureWindows: [CGWindowID: SCWindow] = [:]
   private var lastContentFetch: ContinuousClock.Instant?
-  /// Consecutive samples each window couldn't be captured in.
-  private var misses: [CGWindowID: Int] = [:]
+  /// When each window that can't be captured right now first failed.
+  private var misses: [CGWindowID: ContinuousClock.Instant] = [:]
 
   private enum Measurement {
     case shape(NeighborOutline)
@@ -52,10 +53,8 @@ final class NotchNeighborWatcher {
   func start() {
     guard task == nil else { return }
     task = Task { [weak self] in
-      var first = true
       while !Task.isCancelled {
-        await self?.sample(confirm: !first)
-        first = false
+        await self?.sample()
         let steady = (self?.steadySamples ?? 0) >= Self.samplesBeforeSteady
         try? await Task.sleep(for: steady ? Self.steadyInterval : Self.quickInterval)
       }
@@ -65,7 +64,6 @@ final class NotchNeighborWatcher {
   func stop() {
     task?.cancel()
     task = nil
-    pending = nil
     steadySamples = 0
   }
 
@@ -78,7 +76,7 @@ final class NotchNeighborWatcher {
     misses = [:]
   }
 
-  private func sample(confirm: Bool) async {
+  private func sample() async {
     var measured: [CGDirectDisplayID: NeighborOutline] = [:]
     var listed: Set<CGWindowID> = []
     var inconclusive = false
@@ -102,9 +100,10 @@ final class NotchNeighborWatcher {
         case .nothing:
           misses[candidate.id] = nil
         case .unavailable:
-          let count = misses[candidate.id, default: 0] + 1
-          misses[candidate.id] = count
-          waiting = count <= Self.captureGrace
+          let now = ContinuousClock.now
+          let since = misses[candidate.id, default: now]
+          misses[candidate.id] = since
+          waiting = now - since <= Self.captureGrace
         }
         // Reading on past a window that can't be captured yet would measure the backdrop behind it, or
         // find nothing at all. Either is wrong, so this display waits instead.
@@ -121,18 +120,11 @@ final class NotchNeighborWatcher {
     guard !Task.isCancelled else { return }
 
     guard measured != outlines else {
-      pending = nil
       // Keep sampling quickly while a display is waiting on a window.
       steadySamples = inconclusive ? 0 : steadySamples + 1
       return
     }
     steadySamples = 0
-    // The first sample after a start applies straight away; later changes need to hold for two samples.
-    guard !confirm || measured == pending else {
-      pending = measured
-      return
-    }
-    pending = nil
     outlines = measured
     onChange?()
   }
