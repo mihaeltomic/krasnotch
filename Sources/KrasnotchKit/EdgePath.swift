@@ -43,6 +43,17 @@ public struct EdgeGeometry: Equatable, Sendable {
     return path
   }
 
+  /// The part of the screen the glow can reach: the outline's bounds grown by `padding`, snapped outward
+  /// to `grid` and clipped to the screen. Empty when there's no notch to draw around.
+  public func glowRegion(padding: CGFloat, grid: CGFloat) -> CGRect {
+    let box = path().boundingBoxOfPath
+    guard !box.isNull, grid > 0 else { return .zero }
+    let minX = ((box.minX - padding) / grid).rounded(.down) * grid
+    let maxX = ((box.maxX + padding) / grid).rounded(.up) * grid
+    let minY = ((box.minY - padding) / grid).rounded(.down) * grid
+    return CGRect(x: minX, y: minY, width: maxX - minX, height: box.maxY + padding - minY)
+      .intersection(CGRect(origin: .zero, size: size))
+  }
 }
 
 private extension CGMutablePath {

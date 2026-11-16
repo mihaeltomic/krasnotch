@@ -139,6 +139,23 @@ import Testing
 }
 
 @Suite struct GeometryTests {
+  @Test func glowRegionCoversTheOutlineAndStaysOnTheGrid() {
+    let notch = NotchGeometry(minX: 663, maxX: 849, height: 32)
+    let geometry = EdgeGeometry(size: CGSize(width: 1512, height: 982), topCornerRadius: 10, bottomCornerRadius: 0, notch: notch, notchCornerRadius: 12)
+    let region = geometry.glowRegion(padding: 30, grid: 16)
+    #expect(region.minX <= 663 - 30 && region.maxX >= 849 + 30 && region.minY <= 982 - 32 - 30)
+    #expect(region.maxY == 982)
+    #expect(region.minX.truncatingRemainder(dividingBy: 16) == 0 && region.maxX.truncatingRemainder(dividingBy: 16) == 0)
+    #expect(region.minY.truncatingRemainder(dividingBy: 16) == 0)
+    #expect(region.width < 400 && region.height < 120)
+
+    let wide = EdgeGeometry(size: geometry.size, topCornerRadius: 10, bottomCornerRadius: 0, notch: NotchGeometry(minX: 4, maxX: 1508, height: 32), notchCornerRadius: 12)
+    #expect(wide.glowRegion(padding: 30, grid: 16).width == 1512)
+
+    let noNotch = EdgeGeometry(size: geometry.size, topCornerRadius: 10, bottomCornerRadius: 0, notch: nil, notchCornerRadius: 12)
+    #expect(noNotch.glowRegion(padding: 30, grid: 16).isEmpty)
+  }
+
   @Test func pathHugsScreenAndNotch() {
     let notch = NotchGeometry(minX: 663.5, maxX: 848.5, height: 32)
     let geometry = EdgeGeometry(

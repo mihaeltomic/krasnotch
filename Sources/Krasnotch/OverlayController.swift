@@ -44,7 +44,7 @@ final class OverlayController: NSObject {
     for screen in targetScreens(config: config) {
       guard let window = windows[screen.displayID] else { continue }
       window.sharingType = config.hideFromScreenCapture ? .none : .readOnly
-      window.glowView.apply(style: config[state], geometry: geometry(for: screen, config: config))
+      window.glowView.apply(style: config[state], geometry: geometry(for: screen, config: config), anchor: screen.notch)
       if visible { window.alphaValue = config.brightness }
       window.orderFrontRegardless()
       if !sessions.isEmpty, let notch = screen.notch {

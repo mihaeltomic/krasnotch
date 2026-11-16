@@ -24,7 +24,7 @@ final class GlowLayerView: NSView {
   let magic = MagicLayer()
 
   private let ciContext = CIContext()
-  private var applied: (style: GlowStyle, geometry: EdgeGeometry)?
+  private var applied: (style: GlowStyle, geometry: EdgeGeometry, anchor: NotchGeometry?)?
   private var maskInputs: MaskInputs?
 
   private struct MaskInputs: Equatable {
@@ -63,21 +63,28 @@ final class GlowLayerView: NSView {
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
   /// No-op when nothing changed, so a flood of hook events doesn't restart the animation.
-  func apply(style: GlowStyle, geometry: EdgeGeometry) {
-    if let applied, applied.style == style, applied.geometry == geometry { return }
+  ///
+  /// `anchor` is the notch the gradients turn around, by default the geometry's own. Pass the hardware
+  /// notch while the outline is being reshaped live: the animations depend only on the anchor and the
+  /// screen size, so the outline can then change many times a second without restarting them.
+  func apply(style: GlowStyle, geometry: EdgeGeometry, anchor: NotchGeometry? = nil) {
+    let anchor = anchor ?? geometry.notch
+    if let applied, applied.style == style, applied.geometry == geometry, applied.anchor == anchor { return }
     let previous = applied
-    let motionChanged = previous == nil || previous?.style.motion != style.motion || previous?.style.speed != style.speed || previous?.geometry != geometry
-      || previous?.style.magic != style.magic || (style.magic && previous?.style != style)
-    applied = (style, geometry)
+    // Magic's wand travels the outline itself, so a reshaped outline starts it over.
+    let motionChanged = previous == nil || previous?.style.motion != style.motion || previous?.style.speed != style.speed
+      || previous?.geometry.size != geometry.size || previous?.anchor != anchor
+      || previous?.style.magic != style.magic || (style.magic && (previous?.style != style || previous?.geometry != geometry))
+    applied = (style, geometry, anchor)
 
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     let bounds = CGRect(origin: .zero, size: geometry.size)
     root.frame = bounds
     for band in [line, haze] {
-      [band.holder, band.mask, band.primary, band.secondary].forEach { $0.frame = bounds }
+      [band.holder, band.primary, band.secondary].forEach { $0.frame = bounds }
     }
-    if let notch = geometry.notch {
+    if let notch = anchor {
       let center = CGPoint(x: (notch.minX + notch.maxX) / 2 / geometry.size.width, y: (geometry.size.height - notch.height / 2) / geometry.size.height)
       for band in [line, haze] {
         for gradient in [band.primary, band.secondary] { gradient.startPoint = center; gradient.endPoint = CGPoint(x: center.x, y: center.y - 0.1) }
@@ -142,9 +149,20 @@ final class GlowLayerView: NSView {
     // Half of each stroke sits off-screen, so double the width to get the visible thickness.
     let width = CGFloat(style.thickness) * 2
     let intensity = CGFloat(style.intensity)
-    let path = geometry.path()
+    // Everything drawn stays within ten stroke widths of the outline (the haze reaches furthest), so only
+    // that part of the screen is rendered: a few milliseconds instead of tens for the whole screen.
+    // Snapping to eight dither cells keeps the dither pattern still while the outline moves.
+    let region = geometry.glowRegion(padding: width * 10 + 4, grid: Self.ditherCell * 8)
+    var shift = CGAffineTransform(translationX: -region.minX, y: -region.minY)
+    guard !region.isEmpty, let path = geometry.path().copy(using: &shift) else {
+      line.mask.contents = nil
+      haze.mask.contents = nil
+      return
+    }
+    line.mask.frame = region
+    haze.mask.frame = region
 
-    line.mask.contents = renderMask(path: path, size: geometry.size, scale: scale, strokes: [
+    line.mask.contents = renderMask(path: path, size: region.size, scale: scale, strokes: [
       (width: width * 2.5, blur: width * 1.4, alpha: 0.85 * intensity),
       (width: width, blur: width * 0.15, alpha: 1),
     ])
@@ -153,13 +171,13 @@ final class GlowLayerView: NSView {
     let hazeWidth = width * 6 * max(intensity, 0.2), hazeBlur = width * 4, hazeAlpha = 0.6 * intensity
     if style.dither {
       // One mask pixel per 2 pt dither cell, scaled up nearest-neighbour so every dot stays a crisp square.
-      haze.mask.contents = DitherMask.render(path: path, size: geometry.size, cell: Self.ditherCell, strokeWidth: hazeWidth,
+      haze.mask.contents = DitherMask.render(path: path, size: region.size, cell: Self.ditherCell, strokeWidth: hazeWidth,
                                              blur: hazeBlur, alpha: hazeAlpha, flipped: false, context: ciContext)
       haze.mask.contentsScale = 1 / Self.ditherCell
       haze.mask.magnificationFilter = .nearest
     } else {
       // The haze is soft, so 1x resolution is indistinguishable and a quarter of the memory.
-      haze.mask.contents = renderMask(path: path, size: geometry.size, scale: 1, strokes: [
+      haze.mask.contents = renderMask(path: path, size: region.size, scale: 1, strokes: [
         (width: hazeWidth, blur: hazeBlur, alpha: hazeAlpha),
       ])
       haze.mask.contentsScale = 1
