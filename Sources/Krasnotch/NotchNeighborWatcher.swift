@@ -24,6 +24,9 @@ final class NotchNeighborWatcher {
   private static let steadyInterval: Duration = .seconds(1)
   private static let samplesBeforeSteady = 5
   private static let contentRefetch: Duration = .seconds(2)
+  /// How many samples in a row a window may be uncapturable before it's passed over. Covers the wait for
+  /// the next content refetch, which is when a window that just appeared gets its capture handle.
+  private static let captureGrace = 6
 
   /// Outlines that reach past the hardware notch, per display. Kept while stopped.
   private(set) var outlines: [CGDirectDisplayID: NeighborOutline] = [:]
@@ -35,6 +38,16 @@ final class NotchNeighborWatcher {
   private var steadySamples = 0
   private var captureWindows: [CGWindowID: SCWindow] = [:]
   private var lastContentFetch: ContinuousClock.Instant?
+  /// Consecutive samples each window couldn't be captured in.
+  private var misses: [CGWindowID: Int] = [:]
+
+  private enum Measurement {
+    case shape(NeighborOutline)
+    /// Captured, with nothing opaque hanging over the notch.
+    case nothing
+    /// Not captured, so what the window shows is unknown.
+    case unavailable
+  }
 
   func start() {
     guard task == nil else { return }
@@ -61,30 +74,56 @@ final class NotchNeighborWatcher {
     stop()
     outlines = [:]
     captureWindows = [:]
+    lastContentFetch = nil
+    misses = [:]
   }
 
   private func sample(confirm: Bool) async {
     var measured: [CGDirectDisplayID: NeighborOutline] = [:]
+    var listed: Set<CGWindowID> = []
+    var inconclusive = false
     for screen in NSScreen.screens {
       guard let notch = screen.notch else { continue }
       let display = CGDisplayBounds(screen.displayID)
       let notchRect = CGRect(x: display.minX + notch.minX, y: display.minY, width: notch.maxX - notch.minX, height: notch.height)
       var outline: NeighborOutline?
       var measuredApps: Set<pid_t> = []
+      var waiting = false
+      let candidates = Self.windows(over: notchRect, in: display)
+      listed.formUnion(candidates.map(\.id))
       // Front to back. Only each app's frontmost shape counts: windows behind it are backdrops (Alcove's
       // blur, for one, captures as a solid black rectangle even though it's translucent on screen).
-      for candidate in Self.windows(over: notchRect, in: display) where !measuredApps.contains(candidate.pid) {
-        guard let found = await measure(window: candidate.id, bounds: candidate.bounds, seedX: notchRect.midX, display: display) else { continue }
-        measuredApps.insert(candidate.pid)
-        outline = outline.map { $0.union(found) } ?? found
+      for candidate in candidates where !measuredApps.contains(candidate.pid) {
+        switch await measure(window: candidate.id, bounds: candidate.bounds, seedX: notchRect.midX, display: display) {
+        case let .shape(found):
+          misses[candidate.id] = nil
+          measuredApps.insert(candidate.pid)
+          outline = outline.map { $0.union(found) } ?? found
+        case .nothing:
+          misses[candidate.id] = nil
+        case .unavailable:
+          let count = misses[candidate.id, default: 0] + 1
+          misses[candidate.id] = count
+          waiting = count <= Self.captureGrace
+        }
+        // Reading on past a window that can't be captured yet would measure the backdrop behind it, or
+        // find nothing at all. Either is wrong, so this display waits instead.
+        if waiting { break }
       }
-      if let outline, notch.isExceeded(by: outline.notch) { measured[screen.displayID] = outline }
+      if waiting {
+        measured[screen.displayID] = outlines[screen.displayID]
+        inconclusive = true
+      } else if let outline, notch.isExceeded(by: outline.notch) {
+        measured[screen.displayID] = outline
+      }
     }
+    misses = misses.filter { listed.contains($0.key) }
     guard !Task.isCancelled else { return }
 
     guard measured != outlines else {
       pending = nil
-      steadySamples += 1
+      // Keep sampling quickly while a display is waiting on a window.
+      steadySamples = inconclusive ? 0 : steadySamples + 1
       return
     }
     steadySamples = 0
@@ -118,8 +157,8 @@ final class NotchNeighborWatcher {
     }
   }
 
-  private func measure(window id: CGWindowID, bounds: CGRect, seedX: CGFloat, display: CGRect) async -> NeighborOutline? {
-    guard let window = await captureWindow(id) else { return nil }
+  private func measure(window id: CGWindowID, bounds: CGRect, seedX: CGFloat, display: CGRect) async -> Measurement {
+    guard let window = await captureWindow(id) else { return .unavailable }
     let config = SCStreamConfiguration()
     // One pixel per point is precise enough and keeps each capture tiny.
     config.width = max(1, Int(bounds.width))
@@ -128,16 +167,20 @@ final class NotchNeighborWatcher {
     config.ignoreShadowsSingleWindow = true
     guard let image = try? await SCScreenshotManager.captureImage(
       contentFilter: SCContentFilter(desktopIndependentWindow: window), configuration: config
-    ) else { return nil }
+    ) else {
+      // The handle may be stale; fetch a new one next time.
+      captureWindows[id] = nil
+      return .unavailable
+    }
 
     let scaleX = bounds.width / CGFloat(image.width), scaleY = bounds.height / CGFloat(image.height)
-    guard let shape = NotchShape.measure(image: image, seedX: Int((seedX - bounds.minX) / scaleX)) else { return nil }
+    guard let shape = NotchShape.measure(image: image, seedX: Int((seedX - bounds.minX) / scaleX)) else { return .nothing }
     let left = bounds.minX - display.minX, top = bounds.minY - display.minY
-    return NeighborOutline(
+    return .shape(NeighborOutline(
       notch: NotchGeometry(minX: left + CGFloat(shape.minX) * scaleX, maxX: left + CGFloat(shape.maxX) * scaleX,
                            height: top + CGFloat(shape.height) * scaleY),
       cornerRadius: CGFloat(shape.cornerRadius) * scaleY
-    )
+    ))
   }
 
   /// ScreenCaptureKit's handle for a window. Listing shareable content is slow, so it's cached and refetched sparingly.
