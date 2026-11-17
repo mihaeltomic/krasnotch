@@ -13,11 +13,7 @@ Krasnotch is a macOS menu bar app that lights up the MacBook notch while your co
 
 Grab the latest **Krasnotch-x.y.z.dmg** from [Releases](https://github.com/mihaeltomic/krasnotch/releases/latest), open it and drag Krasnotch to Applications. Builds are universal (Apple silicon and Intel) and need macOS 15 or later.
 
-Until releases are notarized, macOS will say it can't verify the developer the first time. Right-click Krasnotch in Applications and choose **Open**, or run:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/Krasnotch.app
-```
+Releases from 0.2.2 on are signed with a Developer ID and notarized by Apple, so they open without a Gatekeeper warning.
 
 ## Set up
 
@@ -66,7 +62,14 @@ Push a version tag and GitHub Actions tests, builds, packages and publishes the 
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-To ship Developer ID signed and notarized builds, add these repository secrets: `DEVELOPER_ID_P12` (base64 of the exported certificate), `DEVELOPER_ID_P12_PASSWORD`, `DEVELOPER_ID_NAME`, `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD` (an app-specific password).
+Releases are currently signed and notarized locally instead. Store notary credentials once with `xcrun notarytool store-credentials krasnotch`, then run:
+
+```sh
+DEVELOPER_ID="Developer ID Application: Name (TEAMID)" NOTARY_PROFILE=krasnotch VERSION=0.2.3 scripts/package.sh
+gh release create v0.2.3 dist/* --title "Krasnotch 0.2.3" --generate-notes
+```
+
+Creating the release also pushes the tag, which starts the workflow above; cancel that run so it doesn't race the local release. To have CI sign and notarize instead, add these repository secrets: `DEVELOPER_ID_P12` (base64 of the exported certificate), `DEVELOPER_ID_P12_PASSWORD`, `DEVELOPER_ID_NAME`, `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD` (an app-specific password).
 
 ## License
 

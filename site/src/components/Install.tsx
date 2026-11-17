@@ -27,7 +27,7 @@ export const Install = () => (
           <Button href={REPO} size="lg" variant="ghost">Source on GitHub</Button>
         </div>
         <p className="mt-5 max-w-sm text-sm text-pretty text-muted">
-          Not notarized yet. The first time, right-click Krasnotch in Applications and choose Open.
+          Signed and notarized by Apple, so it opens like any other app.
         </p>
       </div>
       <dl className="flex min-w-0 flex-col self-end">
