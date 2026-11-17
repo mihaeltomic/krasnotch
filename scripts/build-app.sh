@@ -53,7 +53,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 if [ -n "${DEVELOPER_ID:-}" ]; then
-  codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID" "$APP"
+  codesign --force --options runtime --timestamp --entitlements Resources/Krasnotch.entitlements --sign "$DEVELOPER_ID" "$APP"
 elif [ -n "${SIGN_IDENTITY:-}" ]; then
   codesign --force --sign "$SIGN_IDENTITY" "$APP"
 else
